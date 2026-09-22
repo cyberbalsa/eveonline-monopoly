@@ -31,7 +31,7 @@
       const p = state.players[id];
       p.position = 10; p.inJail = true; p.jailTurns = 0;
       state.again = false; state.doublesRun = 0;
-      this.log(state, `${p.name} was banned for RMT. Team Security has the wallet logs.`, "#df6f73", { kind: "jail", player: id });
+      this.log(state, `${p.name} was banned for RMT and sent to Winning EVE. Go touch grass.`, "#df6f73", { kind: "jail", player: id });
     },
     move(state, data, id, target, salary = true) {
       const p = state.players[id];
@@ -50,8 +50,8 @@
       this.log(state, `${p.name} rolled ${dice[0]} + ${dice[1]}${doubles ? " (doubles)" : ""}.`, p.color, { kind: "roll", player: id });
       if (p.inJail) {
         state.again = false;
-        if (doubles) { p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name} rolled out of the RMT ban. Move once; no extra roll.`, p.color); }
-        else if (++p.jailTurns < 3) { this.log(state, `${p.name}'s ban appeal failed (${p.jailTurns}/3). No movement.`, p.color, { player: id }); state.phase = "end"; return true; }
+        if (doubles) { p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name} rolled doubles and stopped winning EVE. Back to the launcher. Move once; no extra roll.`, p.color); }
+        else if (++p.jailTurns < 3) { this.log(state, `${p.name}'s ban appeal failed (${p.jailTurns}/3). Still touching grass. No movement.`, p.color, { player: id }); state.phase = "end"; return true; }
         else state.queue.push({ type: "pay", player: id, to: null, amount: 50, reason: "third failed ban appeal" }, { type: "release", player: id });
       } else {
         state.doublesRun = doubles ? state.doublesRun + 1 : 0;
@@ -104,7 +104,7 @@
             } else if (index === 20) this.log(state, `${p.name} docks at Freeport. Free parking, no payout.`, p.color);
             break;
           }
-          case "release": p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name}'s RMT ban was lifted.`, p.color, { player: event.player }); break;
+          case "release": p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name}'s RMT ban was lifted. Finished touching grass; back to EVE.`, p.color, { player: event.player }); break;
           case "unmortgage": delete p.mortgaged[event.index]; this.log(state, `${p.name} redeemed ${data.spaces[event.index].name}.`, p.color, { kind: "mortgage", player: event.player }); break;
           case "auction": this.auction(state, data, event.index); return;
           case "restore":

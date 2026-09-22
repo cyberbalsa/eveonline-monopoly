@@ -58,11 +58,26 @@ test('history search and export include older entries and preserve literal playe
   assert.equal(Log.filter(s.log,s.players,'all','PAID')[0].text,'Human paid 20M');
   assert.ok(Log.exportText(s).includes('<script>not markup</script>'));
 });
-test('EVE sounds are small local MP3s with provenance and verified checksums', () => {
+test('sounds are small local MP3s with per-source provenance and verified checksums', () => {
   const manifest=require('../assets/sounds/provenance.json');let bytes=0;
-  for(const asset of manifest.files){const data=readFileSync(require('node:path').join(__dirname,'..',asset.file));bytes+=data.length;assert.equal(createHash('sha256').update(data).digest('hex'),asset.sha256);assert.ok(asset.originalSHA256);assert.ok(asset.duration<=4);}
-  assert.equal(manifest.owner,'CCP Games');assert.ok(bytes<200000);
+  for(const asset of manifest.files){const data=readFileSync(require('node:path').join(__dirname,'..',asset.file));bytes+=data.length;assert.equal(createHash('sha256').update(data).digest('hex'),asset.sha256);assert.match(asset.originalSHA256,/^[a-f0-9]{64}$/);assert.ok(asset.duration<=4);assert.ok(manifest.sources[asset.source]?.terms);}
+  assert.equal(manifest.sources.eve.owner,'CCP Games');assert.ok(bytes<200000);
   for(const [name] of Object.values(Sound.clips)) assert.ok(manifest.files.some(a=>a.file===`assets/sounds/${name}.mp3`));
+});
+test('roll and movement have dedicated short samples, leaving every other EVE cue unchanged', () => {
+  const manifest=require('../assets/sounds/provenance.json');
+  for(const [kind,source,maxDuration] of [['roll','casino',0.385],['move','scifi',1.1]]) {
+    const [name,level]=Sound.clips[kind],asset=manifest.files.find(a=>a.file===`assets/sounds/${name}.mp3`);
+    assert.equal(asset.source,source);assert.equal(manifest.sources[source].license,'CC0-1.0');
+    assert.ok(asset.duration<=maxDuration);assert.ok(level>0&&level<=0.75);
+    assert.ok(!Object.entries(Sound.clips).some(([key,[other]])=>key!==kind&&other===name));
+  }
+  const {roll,move,...unchanged}=Sound.clips;
+  assert.deepEqual(unchanged,{
+    card:['notification',0.65],income:['complete',0.55],purchase:['complete',0.45],build:['complete',0.5],
+    trade:['notification',0.5],offer:['notification',0.55],bid:['interface',0.45],
+    payment:['capacitor',0.5],debt:['capacitor',0.65],jail:['structure',0.65],bankruptcy:['structure',0.75]
+  });
 });
 test('SFX settings tolerate missing/corrupt values and clamp volume', () => {
   assert.deepEqual(Sound.settings(null),{enabled:true,volume:.35});

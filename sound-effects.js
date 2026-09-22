@@ -1,7 +1,7 @@
-/* Local CCP one-shots. Never waits in the turn engine or controls Webamp. */
+/* Local EVE and Kenney one-shots. Never waits in the turn engine or controls Webamp. */
 (function expose(root) {
   const clips = {
-    roll: ['interface', 0.55], move: ['connecting', 0.42], card: ['notification', 0.65],
+    roll: ['dice-roll', 0.72], move: ['ship-thrust', 0.32], card: ['notification', 0.65],
     income: ['complete', 0.55], purchase: ['complete', 0.45], build: ['complete', 0.5],
     trade: ['notification', 0.5], offer: ['notification', 0.55], bid: ['interface', 0.45],
     payment: ['capacitor', 0.5], debt: ['capacitor', 0.65],

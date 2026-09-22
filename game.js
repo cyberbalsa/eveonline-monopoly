@@ -48,7 +48,7 @@ function renderBoard() {
     cell.title = space.flavor || space.text || space.name;
     if (space.group) cell.style.setProperty("--group-color", D.groups[space.group].color);
     const icon = BoardPieces.icon(space,index);
-    cell.innerHTML = `${space.group ? '<span class="color-bar"></span>' : ""}${icon ? `<img class="eve-space-icon" src="assets/icons/${icon}.png" alt="">` : ""}<span class="space-name">${space.name}</span><span class="space-price">${space.price ? `${space.price}M ISK` : space.amount ? `PAY ${space.amount}M` : ""}</span><span class="upgrade-pips"></span><span class="tokens"></span>`;
+    cell.innerHTML = `${space.group ? '<span class="color-bar"></span>' : ""}${icon ? `<img class="eve-space-icon" src="assets/icons/${icon}.png" alt="">` : ""}<span class="space-name">${space.name}</span><span class="space-price">${space.price ? `${space.price}M ISK` : space.amount ? `PAY ${space.amount}M` : space.caption || ""}</span><span class="upgrade-pips"></span><span class="tokens"></span>`;
     cell.addEventListener("click", () => inspectSpace(index));
     $("#board").appendChild(cell);
   });
@@ -115,7 +115,7 @@ function renderDecisions() {
       { id: "pass-space", label: "AUCTION", run: () => commit(() => S.purchase(state, D, false)) }
     ]);
   } else if (state.phase === "roll" && p.inJail && !p.isBot) {
-    decision("<strong>Account under review.</strong> Pay 50M, use a held card, or try doubles. You still collect rent while banned.", [
+    decision("<strong>You won EVE. Go touch grass.</strong> Pay 50M, use a held card, or try doubles to come back. You still collect rent while banned.", [
       { id: "pay-bail", label: "PAY 50M", run: () => commit(() => S.bail(state, D)) },
       ...p.jailCardDecks.map((deck) => ({ id: `use-${deck}-card`, label: S.deck(D, deck).find((c) => c.effect.type === "escape").title.toUpperCase(), run: () => commit(() => S.bail(state, D, deck)) }))
     ]);

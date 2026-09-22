@@ -30,7 +30,7 @@ When proposing a trade, **Diplomatic Standing** updates as you change ISK, deeds
 
 Rent paid by you or received from a bot produces a red or green wallet popup after landing, with payer, recipient, property, and the amount actually transferred. It disappears after 6.5 seconds or with ×. Debt produces no receipt until settled, and resumed saves do not replay old payments. Tax and card transfers remain in Local but are not mislabeled as rent.
 
-**SFX On/Off** and its volume slider control six local EVE audio clips independently of Webamp. Notification, connection, skill-completion, cargo, capacitor, and structure sounds accompany game actions. Default volume is 35%; mute and volume are saved. Effects unlock after user input, stop when the tab is hidden, and never block play if audio fails. The small clips are loaded once, not streamed or looped. [Sound credits and preparation](research.html#sfx).
+**SFX On/Off** and its volume slider control seven local clips independently of Webamp. Rolls use a 0.36-second dice clatter; movement uses one quiet 1.05-second thruster burst, never a sound on every square. Those two supplemental effects are from Kenney's CC0 packs. Five EVE notification, skill-completion, cargo, capacitor, and structure sounds accompany other actions. Default volume is 35%; mute and volume are saved. Effects unlock after user input, stop when the tab is hidden, and never block play if audio fails. The small clips are loaded once, not streamed or looped. [Sound credits and preparation](research.html#sfx).
 
 Open **Jukebox** for Webamp and the 14-track [EVE Online soundtrack](https://archive.org/details/eve-online-soundtrack/) by Jón Hallur Haraldsson. Press Play to start; music never autoplays. Hide keeps it playing, × pauses and closes the panel, and Reset restores the player layout. Music volume is independent of the game's sound effects. Webamp 2.3.1 loads on demand from jsDelivr with an integrity check. MP3s are hotlinked to Archive.org, not stored in this repository. If either service is unavailable, the board still works and the player offers a direct Archive link.
 
@@ -45,6 +45,8 @@ The public repository publishes from `main`, at `/ (root)`, with HTTPS enabled. 
 ## Rules and bots
 
 The baseline is the US Hasbro C1009 rulebook (2017), with the classic pre-2021 card effects. Start with 1500; GO pays 200; taxes are 200 and 100. Four houses become one hotel, with a finite 32/12 supply. The game includes even building and selling, mandatory public auctions, building shortages, mortgages, trades, held cards, jail options, doubles, liquidation, bankruptcy transfers and a last-player-standing win condition. There are no loans, free-parking prizes, or turn limits. Values are displayed in millions of ISK.
+
+**Winning EVE / Touch Grass** is the Jail corner, named for the community joke about quitting. **Banned for RMT** still sends you there without collecting 200M. Visiting, doubles, the 50M payment, held cards, and rent collection follow the same classic rules. The corner does not end the game. [Meme sources](research.html#winning-eve).
 
 The three bots use public-board heuristics: rent exposure, group completion, denial, auction ceilings, three-house rushes, supply pressure, mortgage recovery, trade valuation, and changing jail strategy. They do not inspect future rolls or decks. They are designed to punish loose trades; they have not been proven stronger than expert humans or published research agents.
 
@@ -64,7 +66,7 @@ All 32 cards have [reference notes](research.html#cards), linked from each drawn
 - `board-camera.js`, `board-pieces.js`, `board-ui.css`: viewport fitting, follow camera, numbered pieces, and old-style colored controls.
 - `board-models.js`: renderer source; `vendor/board-models.min.js`: checked-in Three.js bundle; `assets/models/`: local geometry-only GLBs.
 - `music.js`, `jukebox.html`, `jukebox.js`, `jukebox.css`, `soundtrack.js`: optional Webamp panel and Archive-hosted playlist.
-- `sound-effects.js`, `assets/sounds/`: cached EVE effects, independent volume, provenance.
+- `sound-effects.js`, `assets/sounds/`: cached EVE/CC0 effects, independent volume, provenance.
 - `activity-log.js`, `game-feedback.js`, `feedback.css`: saved action history, rent notifications, and card-pilot identity.
 - `trade-standing.js`: EVE-themed display of the bot’s existing trade valuation; no change to its acceptance policy.
 - `styles.css`, `index.html`, `assets/`: static presentation.

@@ -83,10 +83,11 @@ test('Local preserves old human and bot actions, filters, pages, exports and sur
   await page.reload();await page.locator('#resume-game').click();await page.locator('#log-search').fill('event 0');
   await expect(page.locator('#event-log')).toContainText('event 0');
 });
-test('SFX use decoded local EVE clips, persist independent volume and mute without touching music',async({page})=>{
+test('SFX use decoded local clips, persist independent volume and mute without touching music',async({page})=>{
   expect(await page.evaluate(()=>soundEffects.status.context)).toBe('locked');
   await start(page);
-  await expect.poll(()=>page.evaluate(()=>soundEffects.status.decoded)).toBe(6);
+  const clipCount=await page.evaluate(()=>new Set(Object.values(EveSound.clips).map(([name])=>name)).size);
+  await expect.poll(()=>page.evaluate(()=>soundEffects.status.decoded)).toBe(clipCount);
   expect(await page.evaluate(()=>soundEffects.play('jail'))).toBe(true);
   await expect.poll(()=>page.evaluate(()=>soundEffects.status.played)).toBeGreaterThan(0);
   await page.locator('#sfx-volume').fill('22');
@@ -103,6 +104,48 @@ test('missing audio never blocks a roll or card dismissal',async({page})=>{
   await start(page);await draw(page,0,false);
   await page.locator('#resolve-card').click();await expect(page.locator('#end-turn-button')).toBeEnabled();
   expect(await page.evaluate(()=>soundEffects.status.failed)).toBeGreaterThan(0);
+});
+test('a real animated roll plays short dice then one soft flight cue, never one per square',async({page})=>{
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  const requests=[];page.on('request',r=>{if(r.url().includes('/assets/sounds/'))requests.push(r.url());});
+  await page.evaluate(()=>{
+    window.audioStarts=[];
+    const original=AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start=function(...args){
+      const samples=this.buffer.getChannelData(0);
+      let peak=0,energy=0;for(const value of samples){peak=Math.max(peak,Math.abs(value));energy+=value*value;}
+      window.audioStarts.push({duration:this.buffer.duration,started:performance.now(),peak,rms:Math.sqrt(energy/samples.length)});
+      return original.apply(this,args);
+    };
+  });
+  await start(page);
+  await expect.poll(()=>page.evaluate(()=>soundEffects.status.decoded)).toBe(7);
+  await page.evaluate(()=>{
+    soundEffects.stop();window.audioStarts=[];window.audioKinds=[];
+    const play=soundEffects.play;soundEffects.play=kind=>{window.audioKinds.push(kind);return play(kind);};
+    dice=()=>[2,4];render();
+  });
+  await page.locator('#roll-button').click();
+  await expect(page.locator('#claim-space')).toBeEnabled();
+  const playback=await page.evaluate(()=>({kinds:window.audioKinds,starts:window.audioStarts,position:state.players[0].position}));
+  expect(playback.position).toBe(6);expect(playback.kinds).toEqual(['roll','move']);expect(playback.starts).toHaveLength(2);
+  expect(playback.starts[0].duration).toBeCloseTo(0.36,2);expect(playback.starts[1].duration).toBeCloseTo(1.05,2);
+  expect(playback.starts[1].started-playback.starts[0].started).toBeGreaterThanOrEqual(playback.starts[0].duration*1000-20);
+  for(const clip of playback.starts){expect(clip.peak).toBeLessThan(0.95);expect(clip.rms).toBeGreaterThan(0.005);}
+  expect(requests.some(url=>url.endsWith('/dice-roll.mp3'))).toBe(true);
+  expect(requests.some(url=>url.endsWith('/ship-thrust.mp3'))).toBe(true);
+  expect(requests.some(url=>url.endsWith('/connecting.mp3'))).toBe(false);
+});
+test('Winning EVE shows the grass joke while retaining the playable jail controls',async({page})=>{
+  await start(page);
+  const corner=page.locator('.space[data-index="10"]');
+  await expect(corner).toHaveAccessibleName('Winning EVE');await expect(corner).toContainText('TOUCH GRASS');
+  await page.evaluate(()=>{S.jail(state,0);state.phase='roll';render();saveGame();});
+  await expect(page.locator('#decision-box')).toContainText('You won EVE. Go touch grass.');
+  await expect(page.locator('#active-pilot')).toContainText('Winning EVE');
+  await page.locator('#pay-bail').click();
+  expect(await page.evaluate(()=>[state.players[0].inJail,state.players[0].cash,state.gameOver])).toEqual([false,1450,false]);
+  await expect(page.locator('#roll-button')).toBeEnabled();
 });
 test('new panels and card identity fit a narrow viewport and escape user-provided names',async({page})=>{
   await page.locator('#pilot-name').fill('<b>Capsuleer</b>');await start(page);await draw(page,0,false);

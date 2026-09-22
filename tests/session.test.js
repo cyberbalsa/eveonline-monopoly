@@ -16,6 +16,16 @@ function hold(s, id, deck) {
   s.decks[deck].splice(s.decks[deck].indexOf(index), 1);
   s.players[id].jailCardDecks.push(deck);
 }
+test('Winning EVE is the jail meme, never an alternate win condition', () => {
+  assert.equal(D.spaces[10].name,'Winning EVE');assert.equal(D.spaces[10].caption,'TOUCH GRASS');
+  assert.equal(D.spaces[30].name,'Banned for RMT');assert.equal(D.spaces[30].type,'gotojail');
+  assert.ok(!JSON.stringify(D).includes('Team Security'));
+  for(const deck of [D.mailCards,D.localCards]) for(const card of deck.filter(c=>['escape','jail'].includes(c.effect.type))) assert.ok(card.body.includes('Winning EVE'));
+  const s=game();S.jail(s,0);
+  assert.equal(s.players[0].position,10);assert.equal(s.players[0].inJail,true);assert.equal(s.gameOver,false);
+  assert.ok(s.log.at(-1).text.includes('touch grass'));
+  assert.equal(S.bail(s,D),true);assert.equal(s.players[0].cash,1450);assert.equal(s.players[0].inJail,false);
+});
 function forceCard(s, deck, find) {
   const index = S.deck(D, deck).findIndex(find);
   s.decks[deck].splice(s.decks[deck].indexOf(index), 1);
