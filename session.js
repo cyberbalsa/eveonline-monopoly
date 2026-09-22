@@ -22,7 +22,7 @@
         candidates = rolls.filter((r) => r.roll === highest).map((r) => r.i);
       }
       state.current = candidates[0];
-      this.log(state, `${state.players[state.current].name} won the opening roll. Sign the lease.`, state.players[state.current].color);
+      this.log(state, `${state.players[state.current].name} won the opening roll. Form the fleet.`, state.players[state.current].color);
       return state;
     },
     log(state, text, color = "#93aab3", details = {}) { E.log(state, text, color, details); },
@@ -31,7 +31,7 @@
       const p = state.players[id];
       p.position = 10; p.inJail = true; p.jailTurns = 0;
       state.again = false; state.doublesRun = 0;
-      this.log(state, `${p.name} was banned for RMT and sent to Winning EVE. Go touch grass.`, "#df6f73", { kind: "jail", player: id });
+      this.log(state, `${p.name} was caught in a gate camp and sent to Reship Bay. Bring a spare.`, "#df6f73", { kind: "jail", player: id });
     },
     move(state, data, id, target, salary = true) {
       const p = state.players[id];
@@ -50,9 +50,9 @@
       this.log(state, `${p.name} rolled ${dice[0]} + ${dice[1]}${doubles ? " (doubles)" : ""}.`, p.color, { kind: "roll", player: id });
       if (p.inJail) {
         state.again = false;
-        if (doubles) { p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name} rolled doubles and stopped winning EVE. Back to the launcher. Move once; no extra roll.`, p.color); }
-        else if (++p.jailTurns < 3) { this.log(state, `${p.name}'s ban appeal failed (${p.jailTurns}/3). Still touching grass. No movement.`, p.color, { player: id }); state.phase = "end"; return true; }
-        else state.queue.push({ type: "pay", player: id, to: null, amount: 50, reason: "third failed ban appeal" }, { type: "release", player: id });
+        if (doubles) { p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name} rolled doubles and found a replacement hull. Move once; no extra roll.`, p.color); }
+        else if (++p.jailTurns < 3) { this.log(state, `${p.name}'s reship request failed (${p.jailTurns}/3). Still in Reship Bay. No movement.`, p.color, { player: id }); state.phase = "end"; return true; }
+        else state.queue.push({ type: "pay", player: id, to: null, amount: 50, reason: "third failed reship request" }, { type: "release", player: id });
       } else {
         state.doublesRun = doubles ? state.doublesRun + 1 : 0;
         if (state.doublesRun === 3) { this.jail(state, id); state.phase = "end"; return true; }
@@ -101,10 +101,10 @@
               state.phase = "card";
               this.log(state, `${p.name} drew ${this.deck(data, space.deck)[cardIndex].title}.`, p.color, { kind: "card", player: event.player });
               return;
-            } else if (index === 20) this.log(state, `${p.name} docks at Freeport. Free parking, no payout.`, p.color);
+            } else if (index === 20) this.log(state, `${p.name} starts ship spinning. Free parking, no payout.`, p.color);
             break;
           }
-          case "release": p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name}'s RMT ban was lifted. Finished touching grass; back to EVE.`, p.color, { player: event.player }); break;
+          case "release": p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name}'s replacement hull is ready. Back to the warzone.`, p.color, { player: event.player }); break;
           case "unmortgage": delete p.mortgaged[event.index]; this.log(state, `${p.name} redeemed ${data.spaces[event.index].name}.`, p.color, { kind: "mortgage", player: event.player }); break;
           case "auction": this.auction(state, data, event.index); return;
           case "restore":
@@ -124,7 +124,7 @@
       const { player, index } = state.purchase;
       if (buy) {
         if (!E.buySpace(state, data, state.players[player], index)) return false;
-        this.log(state, `${state.players[player].name} leased ${data.spaces[index].name} for ${data.spaces[index].price}M.`, state.players[player].color, { kind: "purchase", player });
+        this.log(state, `${state.players[player].name} claimed ${data.spaces[index].name} for ${data.spaces[index].price}M.`, state.players[player].color, { kind: "purchase", player });
         delete state.purchase; this.process(state, data);
       } else { this.log(state, `${state.players[player].name} declined ${data.spaces[index].name}. Send it to auction.`, state.players[player].color, { player }); delete state.purchase; this.auction(state, data, index); }
       return true;
@@ -176,7 +176,7 @@
         p.inJail = false; p.jailTurns = 0;
         this.log(state, `${p.name} used ${this.deck(data, card).find((c) => c.effect.type === "escape").title}.`, p.color);
       } else {
-        state.queue.push({ type: "pay", player: state.current, to: null, amount: 50, reason: "ban appeal" }, { type: "release", player: state.current }, { type: "restore", phase: "roll" });
+        state.queue.push({ type: "pay", player: state.current, to: null, amount: 50, reason: "reship fee" }, { type: "release", player: state.current }, { type: "restore", phase: "roll" });
         this.process(state, data);
       }
       return true;
@@ -273,7 +273,7 @@
       return true;
     },
     describeTradeSide(data, side) {
-      return [`${side.cash}M`, ...side.properties.map((i) => data.spaces[i].name), ...side.cards.map((deck) => `${deck === "mail" ? "Alliance Mail" : "Local Spike"} escape card`)].join(" + ");
+      return [`${side.cash}M`, ...side.properties.map((i) => data.spaces[i].name), ...side.cards.map((deck) => `${deck === "mail" ? "Militia Orders" : "Local Comms"} escape card`)].join(" + ");
     },
     bankrupt(state, data) {
       if (state.phase !== "debt") return false;
@@ -282,7 +282,7 @@
       E.raiseCash(state, data, p, Infinity);
       const receiver = debt.to === null ? null : state.players[debt.to];
       const props = [...p.properties], cards = [...p.jailCardDecks];
-      this.log(state, `${p.name} surrendered ${p.cash}M, ${props.length} leases and ${cards.length} held cards to ${receiver ? receiver.name : "the Bank (deeds will be auctioned)"}; unpaid debt: ${debt.amount}M.`, p.color, { player: debt.player });
+      this.log(state, `${p.name} surrendered ${p.cash}M, ${props.length} claims and ${cards.length} held cards to ${receiver ? receiver.name : "the Bank (deeds will be auctioned)"}; unpaid debt: ${debt.amount}M.`, p.color, { player: debt.player });
       state.queue.shift();
       p.bankrupt = true;
       if (receiver) {

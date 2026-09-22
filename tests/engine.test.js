@@ -32,7 +32,7 @@ test("board keeps the complete 40-space layout", () => {
   assert.equal(data.spaces.filter((space) => space.type === "card").length, 6);
   const nonCards = data.spaces.filter((space) => space.type !== "card");
   assert.equal(new Set(nonCards.map((space) => space.name)).size, nonCards.length);
-  assert.deepEqual(new Set(data.spaces.filter((space) => space.type === "card").map((space) => space.name)), new Set(["Alliance Mail", "Local Spike"]));
+  assert.deepEqual(new Set(data.spaces.filter((space) => space.type === "card").map((space) => space.name)), new Set(["Militia Orders", "Local Comms"]));
 });
 
 test("every property group is complete with four houses and a hotel", () => {
@@ -71,7 +71,7 @@ test("utility rent uses four or ten times the roll", () => {
   assert.equal(engine.calculateRent(game([oneUtility]), data, 12, 9), 90);
 });
 
-test("buying a lease transfers cash and prevents a second owner", () => {
+test("buying a claim transfers cash and prevents a second owner", () => {
   const first = player();
   const second = player();
   const state = game([first, second]);
@@ -105,13 +105,13 @@ test("turn rotation skips biomassed pilots", () => {
   assert.equal(engine.nextPlayerIndex(state), 0);
 });
 
-test("ruthless bot doctrines buy sound leases and preserve distinct priorities", () => {
+test("ruthless bot doctrines buy sound claims and preserve distinct priorities", () => {
   const yieldBot = player({ ...data.botProfiles[0], properties: [] });
   const landlord = player({ ...data.botProfiles[1], properties: [] });
   const logistics = player({ ...data.botProfiles[2], properties: [] });
   const state = game([yieldBot, landlord, logistics]);
   assert.equal(engine.botPurchaseDecision(state, data, yieldBot, 26, 0.5).buy, true, "yield bot wants Dronelands");
-  assert.equal(engine.botPurchaseDecision(state, data, landlord, 39, 0.5).buy, true, "landlord wants premium renter space");
+  assert.equal(engine.botPurchaseDecision(state, data, landlord, 39, 0.5).buy, true, "income strategy values premium systems");
   assert.equal(engine.botPurchaseDecision(state, data, logistics, 39, 0.5).buy, true, "hard bots do not ignore sound purchases");
   assert.equal(engine.botPurchaseDecision(state, data, logistics, 5, 0.5).buy, true, "logistics bot wants jump bridges");
   assert.ok(engine.botAuctionBid(state, data, landlord, 39) > engine.botAuctionBid(state, data, logistics, 39), "set breaker values premium group control more");
@@ -141,7 +141,7 @@ test("auction bids never spend the bot's modeled safety reserve", () => {
   assert.ok(bid <= Math.max(0, bot.cash - exposure.recommendedReserve * 0.7));
 });
 
-test("bots leave the ban early while leases remain and camp after the board sells", () => {
+test("bots leave Reship Bay early while claims remain and camp after the board sells", () => {
   const bot = player({ cash: 1500, position: 10 });
   const state = game([bot]);
   assert.equal(engine.botShouldPayBail(state, data, bot), true);

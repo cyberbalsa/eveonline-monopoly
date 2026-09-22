@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#071016" />
-    <meta name="description" content="A fan-made EVE Online renter-space board game for one capsuleer and three bots." />
-    <title>New Eden: Renter's Edition</title>
+    <meta name="description" content="An EVE Online Faction Warfare board game: Calmil, Galmil, and 22 researched warzone hotspots." />
+    <title>New Eden: Faction Warfare</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -13,17 +13,18 @@
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="board-ui.css" />
     <link rel="stylesheet" href="feedback.css" />
+    <link rel="stylesheet" href="faction-war.css" />
   </head>
   <body>
     <div class="stars" aria-hidden="true"></div>
 
     <header class="topbar">
-      <a class="brand" href="#" aria-label="New Eden Renter's Edition home">
-        <span class="brand-mark">NE</span>
-        <span><strong>NEW EDEN</strong><small>RENTER'S EDITION</small></span>
+      <a class="brand" href="#" aria-label="New Eden Faction Warfare home">
+        <span class="brand-mark">FW</span>
+        <span><strong>NEW EDEN</strong><small>FACTION WARFARE</small></span>
       </a>
       <div class="top-actions">
-        <span class="status-pill"><i></i> TRANQUILITY: QUESTIONABLE</span>
+        <span class="status-pill"><i></i> CALMIL × GALMIL</span>
         <div class="sfx-controls"><button class="icon-button" id="sound-toggle" aria-pressed="true" aria-label="Toggle game sound effects" title="Game effects only; music volume is in Webamp">SFX ON</button><label for="sfx-volume" class="sr-only">Sound effects volume</label><input id="sfx-volume" type="range" min="0" max="100" value="35" title="EVE sound effects volume"></div>
         <button class="icon-button" id="music-toggle" aria-label="Show Webamp jukebox" aria-expanded="false" aria-controls="music-panel">JUKEBOX</button>
         <button class="icon-button" data-open="intel-modal">INTEL</button>
@@ -41,23 +42,23 @@
           <div class="board-camera" id="board-camera">
           <div class="board" id="board">
             <div class="board-center">
-              <img src="assets/sovereignty-command.png" alt="A territorial command chamber overlooking a holographic star map" />
+              <img src="assets/warzone-command.svg" alt="A schematic warzone map between the blue Caldari and green Gallente fronts" />
               <div class="center-vignette"></div>
               <div class="center-copy">
-                <div class="eyebrow">SCC NON-BINDING LEASE AGREEMENT</div>
-                <h1>NEW EDEN</h1>
-                <p>RENTER'S <span>EDITION</span></p>
+                <div class="eyebrow">NEW EDEN · THE CALDARI–GALLENTE WARZONE</div>
+                <h1>FACTION<br>WARFARE</h1>
+                <p><span class="calmil-color">CALMIL</span> <i>VS</i> <span class="galmil-color">GALMIL</span></p>
                 <div class="center-rule"><b></b><i>◆</i><b></b></div>
-                <small>PAY RENT · BLUE LANDLORD · DOCK DENIED</small>
+                <small>ORBIT THE BUTTON · LOSE THE SHIP · WIN IN LOCAL</small>
               </div>
-              <div class="deck-back mail-card" aria-label="Alliance Mail deck, face down">
+              <div class="deck-back mail-card" aria-label="Militia Orders deck, face down">
                 <img src="assets/icons/mail.png" alt="" />
-                <strong>ALLIANCE MAIL</strong>
+                <strong>MILITIA ORDERS</strong>
                 <small>COMMUNITY CHEST · FACE DOWN</small>
               </div>
-              <div class="deck-back local-card" aria-label="Local Spike deck, face down">
+              <div class="deck-back local-card" aria-label="Local Comms deck, face down">
                 <img src="assets/icons/local.png" alt="" />
-                <strong>LOCAL SPIKE</strong>
+                <strong>LOCAL COMMS</strong>
                 <small>CHANCE · FACE DOWN</small>
               </div>
             </div>
@@ -111,20 +112,23 @@
 
     <dialog class="modal launch-modal" id="launch-modal">
       <div class="modal-art">
-        <img src="assets/keepstar.png" alt="EVE Online Keepstar citadel render" />
+        <div class="militia-art-side calmil-art"><span>STATE PROTECTORATE</span><img src="assets/caracal.png" alt="Caldari Caracal"><strong>CALMIL</strong><small>FOR THE STATE.</small></div>
+        <div class="militia-art-divider">VS</div>
+        <div class="militia-art-side galmil-art"><span>FEDERAL DEFENSE UNION</span><img src="assets/catalyst.png" alt="Gallente Catalyst"><strong>GALMIL</strong><small>FOR THE FEDERATION.</small></div>
       </div>
       <div class="modal-content">
-        <div class="eyebrow">ONE HUMAN. THREE SCRIPTS. ZERO REFUNDS.</div>
-        <h2>Sign the lease.</h2>
-        <p>Claim regions, invoice your neighbors, and discover why your docking access vanished at 03:00.</p>
+        <div class="eyebrow">SAME WARZONE. DIFFERENT VICTORY POSTERS.</div>
+        <h2>Pick a side.<br>Bring a spare.</h2>
+        <p>Fight over 22 familiar systems. Fund the next fleet. Explain in Local why losing the ship was part of the plan.</p>
         <label for="pilot-name">CALLSIGN</label>
         <input id="pilot-name" maxlength="18" autocomplete="off" value="Capsuleer" />
-        <div class="hangar-heading"><span>SELECT HULL</span><small>Ship choice is cosmetic. Shame is permanent.</small></div>
+        <fieldset class="faction-picker"><legend>ENLIST WITH</legend><label class="calmil-choice"><input type="radio" name="militia" value="calmil" checked><span><strong>CALMIL</strong><small>State Protectorate</small></span></label><label class="galmil-choice"><input type="radio" name="militia" value="galmil"><span><strong>GALMIL</strong><small>Federal Defense Union</small></span></label></fieldset>
+        <div class="hangar-heading"><span>SELECT HULL</span><small>Hull and militia are cosmetic. Every pilot plays to win.</small></div>
         <div class="ship-picker" id="ship-picker" role="radiogroup" aria-label="Select your ship"></div>
         <div class="bot-preview">
-          <span>OPPOSITION</span><b>Drake / Yield</b><b>Dominix / Landlord</b><b>Providence / Logistics</b>
+          <span>48 MILITIA NAMES · 3 RANDOM OPPONENTS</span><small>Pilots, corps &amp; alliances from warzone history. Simulated board opponents.</small>
         </div>
-        <button class="primary-button large" id="start-game">INITIALIZE CAMPAIGN</button>
+        <button class="primary-button large" id="start-game">DEPLOY TO WARZONE</button>
         <button class="text-button" id="resume-game" hidden>Resume saved campaign</button>
       </div>
     </dialog>
@@ -143,8 +147,8 @@
 
     <dialog class="modal auction-modal" id="auction-modal">
       <div class="auction-header">
-        <div class="eyebrow">SCC PUBLIC AUCTION</div>
-        <h2 id="auction-title">Region auction</h2>
+        <div class="eyebrow">MILITIA REQUISITION AUCTION</div>
+        <h2 id="auction-title">System auction</h2>
         <p>Any active pilot may bid. The highest bid wins.</p>
       </div>
       <div class="auction-status" id="auction-status"></div>
@@ -154,12 +158,12 @@
 
     <dialog class="modal finance-modal" id="finance-modal" aria-labelledby="finance-title">
       <button class="modal-close" data-close="finance-modal" aria-label="Close assets">×</button>
-      <div class="eyebrow">YOUR RENTAL LEDGER</div><h2 id="finance-title">Assets &amp; buildings</h2><div id="finance-content"></div>
+      <div class="eyebrow">YOUR WAR CHEST</div><h2 id="finance-title">Assets &amp; buildings</h2><div id="finance-content"></div>
     </dialog>
 
     <dialog class="modal trade-modal" id="trade-modal" aria-labelledby="trade-title">
       <button class="modal-close" data-close="trade-modal" aria-label="Close trade">×</button>
-      <div class="eyebrow">READ THE CONTRACT</div><h2 id="trade-title">Diplomacy, with invoices</h2>
+      <div class="eyebrow">READ THE CONTRACT</div><h2 id="trade-title">Militia diplomacy</h2>
       <label for="trade-partner">Counterparty</label><select id="trade-partner"></select>
       <div id="trade-terms"></div>
       <section class="trade-standing" id="trade-standing" aria-label="Bot appraisal of the proposed contract">
@@ -182,30 +186,30 @@
 
     <dialog class="modal intel-modal" id="intel-modal">
       <button class="modal-close" data-close="intel-modal" aria-label="Close">×</button>
-      <div class="eyebrow">PLEASE READ BEFORE PINGING A DIRECTOR</div>
+      <div class="eyebrow">PLEASE READ BEFORE PINGING THE FC</div>
       <h2>Intel and classic rules</h2>
       <div class="intel-grid">
         <div>
-          <h3>How the scam works</h3>
-          <p>You get one human pilot and three bots. Roll, claim unowned regions, and charge rent when another pilot lands there. Declined leases go to public auction.</p>
-          <p>Own a color group to build evenly: four Astrahus, then one Keepstar. The Bank has 32 Astrahus and 12 Keepstars. Freeport Keepstar pays nothing. Banned for RMT sends you directly to Winning EVE (Jail). Touch grass until you use a held card, pay 50M, or roll doubles. Landing there normally is just visiting.</p>
+          <h3>How the campaign works</h3>
+          <p>You get one human pilot and three bots. Roll, claim hotspot systems, and charge rent when another pilot lands there. Declined claims go to public auction. Militia allegiance changes your identity and colors; this is a classic every-pilot-for-themselves game.</p>
+          <p>Own a color group to build evenly: four Astrahus, then one Keepstar. The Bank has 32 Astrahus and 12 Keepstars. Ship Spinning pays nothing. Gate Camp sends you directly to Reship Bay (Jail). Wait for a replacement until you use a held card, pay 50M, or roll doubles. Landing there normally is just visiting.</p>
           <p>The rules baseline is Hasbro's US C1009 (2017). All 32 card effects retain their classic amounts and destinations. ISK is cosmetic: 1M on this board equals one classic dollar. Open Assets to build, sell, or mortgage; open Trade to negotiate. You can manage holdings during another pilot's turn by pausing the bots.</p>
           <p><a href="research.html#rules" target="_blank" rel="noreferrer">Rules reference and board mapping ↗</a></p>
         </div>
         <div>
           <h3>Board research</h3>
-          <p>The board mixes Faction Warfare flashpoints with nullsec regions known for blocs, rental empires, invasions, or all three. It is satire, not a live sovereignty map.</p>
+          <p>The 22 deeds come from a year of public kill history across the Caldari–Gallente warzone. Prices and color groups are board-game balance; actual ownership and frontlines change.</p>
           <ul>
             <li><a href="https://www.eveonline.com/news/view/uprising-expansion-now-live" target="_blank" rel="noreferrer">Faction Warfare Frontlines</a></li>
-            <li><a href="https://wiki.eveuniversity.org/Sovereignty" target="_blank" rel="noreferrer">Sovereignty mechanics</a></li>
-            <li><a href="https://evemaps.dotlan.net/region" target="_blank" rel="noreferrer">DOTLAN regions</a></li>
+            <li><a href="research.html#hotspots" target="_blank" rel="noreferrer">A year of hotspot history and the selection method</a></li>
+            <li><a href="https://evemaps.dotlan.net/factionwarfare/Caldari_vs_Gallente" target="_blank" rel="noreferrer">Caldari–Gallente warzone</a></li>
             <li><a href="https://community.eveonline.com/community/content-creation/toolkit/" target="_blank" rel="noreferrer">CCP community toolkit</a></li>
           </ul>
         </div>
         <div class="bot-doctrine">
           <h3>Bot doctrine</h3>
-          <p>The bots see the same board you do. They do not peek at future rolls. Yield Hunter chases high-traffic income. Set Breaker finishes its groups and blocks yours. Network Baron values jump bridges, utilities, and connected holdings. All three bid when you pass.</p>
-          <p>The bots forecast nearby rent, bid for set completion, rush three Astrahus per region, and hoard scarce houses. They negotiate trades, redeem mortgages, and stay banned late in the game when the board is expensive. These are researched heuristic opponents; they do not peek at the shuffled decks or future dice.</p>
+          <p>The bots see the same board you do. They do not peek at future rolls. Each campaign draws three unique names from 48 researched militia cameos. One bot chases high-traffic income, one completes sets and blocks yours, and one prioritizes logistics and utilities. All three bid when you pass.</p>
+          <p>The bots forecast nearby rent, bid for set completion, rush three Astrahus per system, and hoard scarce houses. They negotiate trades, redeem mortgages, and stay in Reship Bay late in the game when the board is expensive. These are researched heuristic opponents; they do not peek at the shuffled decks or future dice.</p>
           <ul>
             <li><a href="https://arxiv.org/abs/2103.00683" target="_blank" rel="noreferrer">Hybrid Monopoly AI research</a></li>
             <li><a href="https://github.com/conaloneill/MonopolyBot" target="_blank" rel="noreferrer">TopHat Monopoly bot</a></li>
@@ -214,8 +218,8 @@
           </ul>
         </div>
       </div>
-      <p><a href="research.html#cards" target="_blank" rel="noreferrer">All 32 cards and their references ↗</a><br><a href="research.html#streamer" target="_blank" rel="noreferrer">Streamer Privilege and the Loru source notes ↗</a><br><a href="research.html#sfx" target="_blank" rel="noreferrer">EVE sound effect credits ↗</a></p>
-      <div class="legal-note">An unofficial, non-commercial fan parody. EVE Online art belongs to its respective owners; Monopoly belongs to Hasbro. No endorsement is implied. The command-room backdrop was generated for this project. <a href="research.html#art" target="_blank" rel="noreferrer">Art credits</a>.</div>
+      <p><a href="research.html#cards" target="_blank" rel="noreferrer">All 32 cards and their references ↗</a><br><a href="research.html#opponents" target="_blank" rel="noreferrer">All 48 opponent names and their sources ↗</a><br><a href="research.html#sfx" target="_blank" rel="noreferrer">EVE sound effect credits ↗</a></p>
+      <div class="legal-note">An unofficial, non-commercial fan parody. EVE Online art belongs to its respective owners; Monopoly belongs to Hasbro. No endorsement is implied. The stylized warzone map is original artwork. <a href="research.html#art" target="_blank" rel="noreferrer">Art credits</a>.</div>
     </dialog>
 
     <aside id="music-panel" class="music-panel" aria-label="EVE soundtrack jukebox" hidden>
@@ -225,6 +229,7 @@
     </aside>
 
     <script src="data.js"></script>
+    <script src="bot-roster.js"></script>
     <script src="engine.js"></script>
     <script src="session.js"></script>
     <script src="bots.js"></script>

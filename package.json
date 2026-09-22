@@ -1,8 +1,8 @@
 {
-  "name": "new-eden-renters-edition",
+  "name": "new-eden-faction-warfare",
   "version": "1.0.0",
   "private": true,
-  "description": "A static EVE Online renter-space board-game parody.",
+  "description": "A Caldari–Gallente Faction Warfare board-game parody, built around researched combat hotspots.",
   "scripts": {
     "test": "node --test tests/*.test.js",
     "test:e2e": "playwright test",

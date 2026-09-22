@@ -136,13 +136,13 @@ test('a real animated roll plays short dice then one soft flight cue, never one 
   expect(requests.some(url=>url.endsWith('/ship-thrust.mp3'))).toBe(true);
   expect(requests.some(url=>url.endsWith('/connecting.mp3'))).toBe(false);
 });
-test('Winning EVE shows the grass joke while retaining the playable jail controls',async({page})=>{
+test('Reship Bay shows the new theme while retaining the playable jail controls',async({page})=>{
   await start(page);
   const corner=page.locator('.space[data-index="10"]');
-  await expect(corner).toHaveAccessibleName('Winning EVE');await expect(corner).toContainText('TOUCH GRASS');
+  await expect(corner).toHaveAccessibleName('Reship Bay');await expect(corner).toContainText('JUST RESHIPPING');
   await page.evaluate(()=>{S.jail(state,0);state.phase='roll';render();saveGame();});
-  await expect(page.locator('#decision-box')).toContainText('You won EVE. Go touch grass.');
-  await expect(page.locator('#active-pilot')).toContainText('Winning EVE');
+  await expect(page.locator('#decision-box')).toContainText('Your pod made it. Your ship did not.');
+  await expect(page.locator('#active-pilot')).toContainText('Reship Bay');
   await page.locator('#pay-bail').click();
   expect(await page.evaluate(()=>[state.players[0].inJail,state.players[0].cash,state.gameOver])).toEqual([false,1450,false]);
   await expect(page.locator('#roll-button')).toBeEnabled();

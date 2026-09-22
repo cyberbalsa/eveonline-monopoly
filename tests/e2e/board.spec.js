@@ -22,7 +22,7 @@ test('ships have real meshes, unique numbered markers, and a matching locate con
   expect(await page.locator('.pawn-number').allTextContents()).toEqual(['1','2','3','4']);
   const before=await page.evaluate(()=>JSON.stringify(state));
   await page.locator('#roster [data-locate="2"]').click();
-  await expect(page.locator('#camera-caption')).toContainText('RENT_DUE');
+  await expect(page.locator('#camera-caption')).toContainText(await page.evaluate(()=>state.players[2].name));
   expect(await page.evaluate(()=>boardCamera.snapshot.zoom)).toBeGreaterThan(1);
   expect(await page.evaluate(()=>JSON.stringify(state))).toBe(before);
   await page.locator('#camera-fit').click();
@@ -50,10 +50,10 @@ test('Astrahus and Keepstar use meshes and show the exact building count', async
 });
 test('both decks remain face down; only a drawn card reveals its contents', async ({page}) => {
   await expect(page.locator('.deck-back')).toHaveCount(2);
-  await expect(page.locator('.deck-back')).not.toContainText(['SRP denied','M2 ghost ship']);
+  await expect(page.locator('.deck-back')).not.toContainText(['Wrong hull, right enthusiasm','The plex despawned']);
   await expect(page.locator('#drawn-card')).toBeEmpty();
   await page.evaluate(()=>{state.card={player:0,deck:'mail',index:2};state.phase='card';state.queue=[{type:'finish',player:0}];render();});
-  await expect(page.locator('#drawn-card')).toContainText('SRP denied');
+  await expect(page.locator('#drawn-card')).toContainText('Wrong hull, right enthusiasm');
   await page.locator('#resolve-card').click();
   await expect(page.locator('#drawn-card')).toBeEmpty();
   await expect(page.locator('#card-modal')).not.toBeVisible();

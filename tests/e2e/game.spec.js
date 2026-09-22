@@ -26,6 +26,42 @@ test("chooses one of eight hulls and starts with four ships and classic supply",
   await expect.poll(() => page.locator(".ship-token img").evaluateAll((images) => images.every((img) => img.complete && img.naturalWidth > 0))).toBe(true);
 });
 
+test("militia selection draws distinct names and saved opponents never reroll", async ({ page }) => {
+  await page.locator('[name="militia"][value="galmil"]').check();
+  await page.locator('#pilot-name').fill('Templis CALSF');
+  await start(page);
+  const original = await page.evaluate(() => state.players.map(p => ({ name:p.name, faction:p.faction, identity:p.botIdentityId })));
+  expect(original[0].faction).toBe('galmil');
+  expect(original.filter(p => p.faction === 'calmil')).toHaveLength(2);
+  expect(original.filter(p => p.faction === 'galmil')).toHaveLength(2);
+  expect(new Set(original.map(p => p.name)).size).toBe(4);
+  expect(new Set(original.slice(1).map(p => p.identity)).size).toBe(3);
+  await expect(page.locator('#roster')).toContainText('GALMIL');
+  // Resuming must ignore both fresh randomness and forged bot display metadata.
+  await page.evaluate(() => {
+    state.players[1].name = '<b>forged name</b>';
+    state.players[1].ship = 'https://invalid.example/ship.png';
+    saveGame();
+  });
+  await page.reload();
+  await page.evaluate(() => { Math.random = () => 0.99; });
+  await page.locator('#resume-game').click();
+  expect(await page.evaluate(() => state.players.map(p => ({ name:p.name, faction:p.faction, identity:p.botIdentityId })))).toEqual(original);
+  expect(await page.evaluate(() => state.players[1].ship)).toBe('assets/drake.png');
+  await expect(page.locator('#roster b')).toHaveCount(0);
+});
+
+test("new campaigns choose from the full name pool instead of retaining fixed opponents", async ({ page }) => {
+  await page.evaluate(() => { Math.random = () => 0.01; });
+  await start(page);
+  const first = await page.evaluate(() => state.players.slice(1).map(p => p.botIdentityId));
+  await page.evaluate(() => { resetGame(); Math.random = () => 0.99; });
+  await start(page);
+  const second = await page.evaluate(() => state.players.slice(1).map(p => p.botIdentityId));
+  expect(first).not.toEqual(second);
+  expect(await page.evaluate(() => state.players.slice(1).every(p => GAME_ROSTER.find(p.botIdentityId)?.name === p.name))).toBe(true);
+});
+
 test("purchase after doubles blocks the turn and survives reload without reroll", async ({ page }) => {
   await start(page);
   await page.evaluate(() => { dice = () => [3,3]; });
@@ -41,7 +77,7 @@ test("purchase after doubles blocks the turn and survives reload without reroll"
   expect(await page.evaluate(() => state.players[0].cash)).toBe(1400);
 });
 
-test("Loru card has source context, cannot be dismissed, is held then used for free", async ({ page }) => {
+test("Escape card has source context, cannot be dismissed, is held then used for free", async ({ page }) => {
   await start(page);
   await page.evaluate(() => {
     const index = D.mailCards.findIndex((c) => c.effect.type === "escape");
@@ -49,9 +85,9 @@ test("Loru card has source context, cannot be dismissed, is held then used for f
     state.card = {player:0,deck:"mail",index}; state.phase="card";
     state.queue=[{type:"finish",player:0}]; saveGame(); render();
   });
-  await expect(page.locator("#drawn-card")).toContainText("Streamer Privilege");
-  await expect(page.locator("#drawn-card")).toContainText("LORU");
-  await expect(page.locator(".card-source")).toHaveAttribute("href","research.html#streamer");
+  await expect(page.locator("#drawn-card")).toContainText("Instawarp bookmark");
+  await expect(page.locator("#drawn-card")).toContainText("Reship Bay");
+  await expect(page.locator(".card-source")).toHaveAttribute("href","research.html#card-reship");
   await page.keyboard.press("Escape"); await expect(page.locator("#card-modal")).toBeVisible();
   await page.reload(); await page.locator("#resume-game").click();
   await expect(page.locator("#card-modal")).toBeVisible();
@@ -79,7 +115,7 @@ test("all 32 cards render their joke, instructions and source without horizontal
     await expect(page.locator("#resolve-card")).toBeInViewport();
   }
   await page.goto("/research.html#cards");
-  await expect(page.locator("#cards h2")).toHaveText("The references behind all 32 cards");
+  await expect(page.locator("#cards h2")).toHaveText("All 32 cards and their references");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
 
@@ -156,13 +192,14 @@ test("research and 3D board controls work on desktop and mobile", async ({ page 
   await page.locator("#view-toggle").click(); await expect(page.locator("#board")).toHaveClass(/tactical-3d/);
   await page.getByRole("button",{name:"INTEL",exact:true}).click();
   await expect(page.locator("#intel-modal")).toContainText("C1009");
-  await expect(page.locator('#intel-modal a[href="research.html#streamer"]')).toBeVisible();
+  await expect(page.locator('#intel-modal a[href="research.html#opponents"]')).toBeVisible();
   await page.locator('[data-close="intel-modal"]').click();
   if(testInfo.project.name.includes("mobile")) {
     const sizes=await page.locator(".board-scroll").evaluate((e)=>[e.scrollWidth,e.clientWidth]); expect(sizes[0]).toBeLessThanOrEqual(sizes[1]+1);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   }
-  await page.goto("/research.html#streamer"); await expect(page.locator("#streamer")).toContainText("interpretation, not a confirmed finding");
+  await page.goto("/research.html#opponents"); await expect(page.locator("#opponents")).toContainText("48");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });
 
 test("project-subpath hosting resolves code and images without root-relative URLs", async ({page}) => {

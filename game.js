@@ -1,20 +1,20 @@
-/* global GAME_DATA, GAME_ENGINE, GAME_SESSION, GAME_BOTS */
+/* global GAME_DATA, GAME_ENGINE, GAME_SESSION, GAME_BOTS, GAME_ROSTER */
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const E = GAME_ENGINE, S = GAME_SESSION, B = GAME_BOTS, D = GAME_DATA;
-const SAVE_KEY = "new-eden-renters-edition-v3";
+const SAVE_KEY = "new-eden-faction-warfare-v1";
 const diceGlyphs = ["·", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 const PLAYER_SHIPS = [
-  { name: "Rifter", path: "assets/rifter.png", note: "rust first" },
+  { name: "Rifter", path: "assets/rifter.png", note: "cheap tackle" },
   { name: "Venture", path: "assets/venture.png", note: "bait fit" },
-  { name: "Catalyst", path: "assets/catalyst.png", note: "safety red" },
+  { name: "Catalyst", path: "assets/catalyst.png", note: "blasters ready" },
   { name: "Caracal", path: "assets/caracal.png", note: "kite away" },
   { name: "Drake", path: "assets/drake.png", note: "can I bring" },
-  { name: "Gila", path: "assets/gila.png", note: "abyss brain" },
-  { name: "Ishtar", path: "assets/ishtar.png", note: "very human" },
+  { name: "Gila", path: "assets/gila.png", note: "gate says no" },
+  { name: "Ishtar", path: "assets/ishtar.png", note: "recall drones" },
   { name: "Dominix", path: "assets/dominix.png", note: "space potato" }
 ];
-let state = null, selectedShip = 0, timer = null, generation = 0, busy = false, paused = false;
+let state = null, selectedShip = 0, selectedFaction = "calmil", timer = null, generation = 0, busy = false, paused = false;
 let visualPositions = null, inspected = null;
 let boardCamera = null, soundEffects = null, activityLog = null, feedback = null;
 const h = (text) => String(text).replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[c]);
@@ -29,8 +29,19 @@ function setDie(element, value) {
   element.setAttribute("aria-label", value ? `Die: ${value}` : "Die: not rolled");
   element.setAttribute("role", "img");
 }
+function campaignProfiles(faction, savedIds, humanName = "") {
+  const side = D.factions[faction] ? faction : "calmil";
+  const other = side === "calmil" ? "galmil" : "calmil";
+  const factions = ["calmil", "galmil", other];
+  // Restore only known local identities. A valid saved campaign never rerolls names.
+  const saved = savedIds?.map(id => GAME_ROSTER.find(id));
+  const validSaved = saved?.length === 3 && saved.every((entry, i) => entry?.faction === factions[i]) && new Set(savedIds).size === 3;
+  const identities = validSaved ? saved : GAME_ROSTER.pick(factions, savedIds ? () => 0 : Math.random, [humanName]);
+  return [{ faction: side, color: D.factions[side].color, motto: "one more plex", isBot: false }, ...D.botProfiles.map((p, i) => ({ ...p, faction: factions[i], name: identities[i].name, botIdentityId: identities[i].id, ...(i === 2 ? { ship: `assets/${other === "calmil" ? "caracal" : "catalyst"}.png`, shipName: other === "calmil" ? "Caracal" : "Catalyst" } : {}), isBot: true }))];
+}
 function newState(name = "Capsuleer", ship = PLAYER_SHIPS[0]) {
-  return S.create(D, [{ name: name.trim().slice(0, 18) || "Capsuleer", ship: ship.path, shipName: ship.name, color: "#55d8e8", motto: "probably human", isBot: false }, ...D.botProfiles.map((p, i) => ({ ...p, shipName: ["Drake", "Dominix", "Providence"][i], isBot: true }))]);
+  const profiles = campaignProfiles(selectedFaction, undefined, name);
+  return S.create(D, [{ ...profiles[0], name: name.trim().slice(0, 18) || "Capsuleer", ship: ship.path, shipName: ship.name }, ...profiles.slice(1)]);
 }
 function boardPosition(i) {
   if (i <= 10) return [11, 11 - i];
@@ -63,8 +74,8 @@ function render() {
   const current = state.players[state.current], human = state.players[0], actor = state.players[B.actor(state)];
   $("#turn-counter").textContent = `ROUND ${state.turn}`;
   $("#bank-supply").innerHTML = `<span>BANK SUPPLY</span><b>${state.bank.houses} ASTRAHUS</b><b>${state.bank.hotels} KEEPSTARS</b>`;
-  $("#active-pilot").innerHTML = `<img class="pilot-portrait" src="${current.ship}" alt="${current.shipName}" style="--pilot:${current.color}"><div><h3><span class="pilot-number" style="--pilot:${current.color}">${state.current + 1}</span> ${h(current.name)}</h3><p>${current.isBot ? "AUTOPILOT" : "HUMAN"} · <b>${money(current.cash)}</b></p><button class="pilot-location" data-locate="${state.current}">${current.inJail ? "BANNED · " : ""}${D.spaces[visualPositions?.[state.current] ?? current.position].name} ↗</button></div>`;
-  $("#roster").innerHTML = state.players.map((p, i) => `<button type="button" data-locate="${i}" ${p.bankrupt ? 'disabled' : ''} aria-label="Locate pilot ${i + 1}: ${h(p.name)}" class="roster-row ${i === state.current ? "active" : ""} ${p.bankrupt ? "bankrupt" : ""}" style="--pilot:${p.color}"><span class="pilot-number">${i + 1}</span><img src="${p.ship}" alt="${p.shipName}"><div><strong>${i === 0 ? 'YOU · ' : ''}${h(p.name)}</strong><small>${p.bankrupt ? "BIOMASSED" : `${p.properties.length} LEASES · ${p.shipName}`}</small><span class="roster-location">${p.inJail ? "RMT BAN" : D.spaces[visualPositions?.[i] ?? p.position].name}</span></div><div class="roster-money">${money(p.cash)}<small>LOCATE ↗</small></div></button>`).join("");
+  $("#active-pilot").innerHTML = `<img class="pilot-portrait" src="${current.ship}" alt="${current.shipName}" style="--pilot:${current.color}"><div><h3><span class="pilot-number" style="--pilot:${current.color}">${state.current + 1}</span> ${h(current.name)}</h3><p>${current.isBot ? "BOT" : "HUMAN"} · ${D.factions[current.faction]?.name || "MILITIA"} · <b>${money(current.cash)}</b></p><button class="pilot-location" data-locate="${state.current}">${current.inJail ? "RESHIPPING · " : ""}${D.spaces[visualPositions?.[state.current] ?? current.position].name} ↗</button></div>`;
+  $("#roster").innerHTML = state.players.map((p, i) => `<button type="button" data-locate="${i}" ${p.bankrupt ? 'disabled' : ''} aria-label="Locate pilot ${i + 1}: ${h(p.name)}" class="roster-row ${i === state.current ? "active" : ""} ${p.bankrupt ? "bankrupt" : ""}" style="--pilot:${p.color}"><span class="pilot-number">${i + 1}</span><img src="${p.ship}" alt="${p.shipName}"><div><strong>${i === 0 ? 'YOU · ' : ''}${h(p.name)}</strong><small>${p.bankrupt ? "BIOMASSED" : `${D.factions[p.faction]?.name || "MILITIA"} · ${p.properties.length} CLAIMS`}</small><span class="roster-location">${p.inJail ? "RESHIPPING" : D.spaces[visualPositions?.[i] ?? p.position].name}</span></div><div class="roster-money">${money(p.cash)}<small>LOCATE ↗</small></div></button>`).join("");
   $$('[data-locate]').forEach(button => button.addEventListener('click',() => locatePlayer(Number(button.dataset.locate))));
   $$(".space").forEach((cell) => {
     const index = Number(cell.dataset.index), owner = E.getOwner(state, index), count = owner?.upgrades[index] || 0;
@@ -107,7 +118,7 @@ function renderDecisions() {
   if (state.phase !== "offer") { closeDialog("trade-offer-modal"); $("#offer-terms").replaceChildren(); }
   if (state.phase === "over") {
     const winner = state.players.find((p) => !p.bankrupt);
-    decision(`<strong>${h(winner.name)}</strong> wins with ${money(winner.cash)} and ${winner.properties.length} leases.`, [{ id: "play-again", label: "NEW CAMPAIGN", run: resetGame }]);
+    decision(`<strong>${h(winner.name)}</strong> wins with ${money(winner.cash)} and ${winner.properties.length} claims.`, [{ id: "play-again", label: "NEW CAMPAIGN", run: resetGame }]);
   } else if (state.phase === "purchase" && !actor.isBot) {
     const space = D.spaces[state.purchase.index];
     decision(`<strong>${space.name}</strong> is unclaimed. Buy it for ${money(space.price)}, or let everyone bid.`, [
@@ -115,13 +126,13 @@ function renderDecisions() {
       { id: "pass-space", label: "AUCTION", run: () => commit(() => S.purchase(state, D, false)) }
     ]);
   } else if (state.phase === "roll" && p.inJail && !p.isBot) {
-    decision("<strong>You won EVE. Go touch grass.</strong> Pay 50M, use a held card, or try doubles to come back. You still collect rent while banned.", [
+    decision("<strong>Your pod made it. Your ship did not.</strong> Pay 50M, use a held card, or try doubles to leave Reship Bay. You still collect rent while reshipping.", [
       { id: "pay-bail", label: "PAY 50M", run: () => commit(() => S.bail(state, D)) },
       ...p.jailCardDecks.map((deck) => ({ id: `use-${deck}-card`, label: S.deck(D, deck).find((c) => c.effect.type === "escape").title.toUpperCase(), run: () => commit(() => S.bail(state, D, deck)) }))
     ]);
   } else if (state.phase === "debt" && !actor.isBot) {
     const debt = state.queue[0];
-    decision(`<strong>${money(debt.amount)} due.</strong> Wallet: ${money(actor.cash)}. Sell buildings, mortgage leases, or negotiate a trade.`, [
+    decision(`<strong>${money(debt.amount)} due.</strong> Wallet: ${money(actor.cash)}. Sell buildings, mortgage claims, or negotiate a trade.`, [
       { id: "manage-debt", label: "MANAGE ASSETS", run: showFinance },
       { id: "settle-debt", label: "PAY IN FULL", disabled: actor.cash < debt.amount, run: () => commit(() => { S.process(state, D); return true; }) },
       { id: "auto-raise", label: "AUTO RAISE CASH", run: () => commit(() => { E.raiseCash(state, D, actor, debt.amount); return true; }) },
@@ -141,12 +152,12 @@ function renderDecisions() {
     ]);
   } else if (state.phase === "offer") {
     renderBotOffer();
-  } else if (state.players[0].bankrupt && !state.gameOver) decision("Your rental empire is gone. The bots will finish the campaign. You can watch or start a new one.");
+  } else if (state.players[0].bankrupt && !state.gameOver) decision("Your war chest is empty. The bots will finish the campaign. You can watch or start a new one.");
   if (state.phase === "card") {
     const card = S.deck(D, state.card.deck)[state.card.index];
     $("#drawn-card").style.setProperty("--card-color", state.card.deck === "mail" ? "#67e8f9" : "#e76c70");
     $("#drawn-card").classList.toggle("escape-card", card.effect.type === "escape");
-    $("#drawn-card").innerHTML = `<div class="card-icon"><img src="assets/icons/${card.effect.type === "escape" ? "security" : state.card.deck}.png" alt=""></div><div class="card-deck">${state.card.deck === "mail" ? "ALLIANCE MAIL" : "LOCAL SPIKE"}</div>${card.kicker ? `<small class="card-kicker">${card.kicker}</small>` : ""}<h2>${card.title}</h2><p>${card.body}</p>${card.source ? `<a class="card-source" href="${card.source}" target="_blank" rel="noreferrer">The story behind the card ↗</a>` : ""}`;
+    $("#drawn-card").innerHTML = `<div class="card-icon"><img src="assets/icons/${card.effect.type === "escape" ? "security" : state.card.deck}.png" alt=""></div><div class="card-deck">${state.card.deck === "mail" ? "MILITIA ORDERS" : "LOCAL COMMS"}</div>${card.kicker ? `<small class="card-kicker">${card.kicker}</small>` : ""}<h2>${card.title}</h2><p>${card.body}</p>${card.source ? `<a class="card-source" href="${card.source}" target="_blank" rel="noreferrer">The story behind the card ↗</a>` : ""}`;
     const cardPilot = state.players[state.card.player];
     $("#card-pilot").style.setProperty("--pilot", cardPilot.color);
     $("#card-pilot").innerHTML = `<img src="${cardPilot.ship}" alt="${h(cardPilot.shipName)}"><div><small>PILOT ${state.card.player + 1} · ${cardPilot.isBot ? "BOT" : "HUMAN · YOU"} · ${h(cardPilot.shipName)}</small><strong>${h(cardPilot.name)}</strong></div>`;
@@ -160,7 +171,7 @@ function renderDecisions() {
 function renderAuction() {
   const a = state.auction, human = state.players[0], next = a.bid ? a.bid + 1 : 10;
   $("#auction-title").textContent = a.building ? `Last ${a.building === "houses" ? "Astrahus" : "Keepstar"}` : D.spaces[a.index].name;
-  $("#auction-status").innerHTML = `<div class="current-bid"><span>CURRENT BID</span><strong>${a.bid ? money(a.bid) : "NO BIDS"}</strong><small>${a.leader === null ? "Opening bid: 10M" : h(state.players[a.leader].name)}</small></div><p>Your wallet: ${money(human.cash)}. Bids may rise by 1M. Everyone can bid, including the pilot who declined the lease.</p>${a.building && a.targets[0] !== undefined ? `<label>Build in <select id="auction-target">${human.properties.filter((i) => E.canUpgrade(state, D, human, i) && ((human.upgrades[i] || 0) === 4 ? "hotels" : "houses") === a.building).map((i) => `<option value="${i}">${D.spaces[i].name}</option>`).join("")}</select></label>` : ""}`;
+  $("#auction-status").innerHTML = `<div class="current-bid"><span>CURRENT BID</span><strong>${a.bid ? money(a.bid) : "NO BIDS"}</strong><small>${a.leader === null ? "Opening bid: 10M" : h(state.players[a.leader].name)}</small></div><p>Your wallet: ${money(human.cash)}. Bids may rise by 1M. Everyone can bid, including the pilot who declined the claim.</p>${a.building && a.targets[0] !== undefined ? `<label>Build in <select id="auction-target">${human.properties.filter((i) => E.canUpgrade(state, D, human, i) && ((human.upgrades[i] || 0) === 4 ? "hotels" : "houses") === a.building).map((i) => `<option value="${i}">${D.spaces[i].name}</option>`).join("")}</select></label>` : ""}`;
   $("#bid-amount").value = next; $("#bid-amount").min = next; $("#bid-amount").max = human.cash;
   $("#submit-bid").disabled = human.bankrupt || human.cash < next || Boolean(a.building && a.targets[0] === undefined);
   showDialog("auction-modal");
@@ -256,10 +267,10 @@ function inspectSpace(index) {
   const yours = owner === p && !p.bankrupt && !state.gameOver && (!committedGroup || committedGroup !== space.group);
   const color = space.group ? D.groups[space.group].color : "#8b82e8";
   const labels = ["Open space", "1 Astrahus", "2 Astrahus", "3 Astrahus", "4 Astrahus", "Keepstar"];
-  const rent = space.rent ? space.rent.map((r, i) => `<div class="rent-line ${i === level ? "current" : ""}"><span>${labels[i]}</span><b>${money(r)}</b></div>`).join("") + `<p class="property-note">Unbuilt full set: ${money(space.rent[0] * 2)}. Build cost: ${money(space.buildCost)} each.</p>` : `<p>${space.type === "transit" ? "1 / 2 / 3 / 4 bridges: 25 / 50 / 100 / 200M rent." : "1 utility: 4 × fresh dice. Both utilities: 10 × fresh dice."}</p>`;
+  const rent = space.rent ? space.rent.map((r, i) => `<div class="rent-line ${i === level ? "current" : ""}"><span>${labels[i]}</span><b>${money(r)}</b></div>`).join("") + `<p class="property-note">Unbuilt full set: ${money(space.rent[0] * 2)}. Build cost: ${money(space.buildCost)} each.</p>` : `<p>${space.type === "transit" ? "1 / 2 / 3 / 4 logistics routes: 25 / 50 / 100 / 200M rent." : "1 utility: 4 × fresh dice. Both utilities: 10 × fresh dice."}</p>`;
   const committedBid = state.phase === "auction" && state.auction.leader === 0 ? state.auction.bid : 0;
   const canBuild = yours && ["roll", "end", "purchase"].includes(state.phase) && E.canUpgrade(state, D, p, index);
-  $("#property-detail").innerHTML = `<div class="property-sheet" style="--sheet-color:${color}"><div class="property-banner"><div class="eyebrow">${space.group ? D.groups[space.group].name : space.type}</div><h2>${space.name}</h2></div><p class="property-flavor">${space.flavor || space.text}</p><div class="property-stats"><div><span>LEASE</span><b>${money(space.price)}</b></div><div><span>OWNER</span><b>${owner ? h(owner.name) : "BANK"}</b></div><div><span>STATUS</span><b>${owner?.mortgaged[index] ? "MORTGAGED" : space.group ? labels[level] : "ACTIVE"}</b></div></div><div class="rent-table">${rent}</div>${space.group ? `<div class="citadel-track">${[1, 2, 3, 4, 5].map((n) => `<div class="${level === n ? "built" : ""}"><img src="assets/${n === 5 ? "keepstar" : "astrahus"}.png" alt="${n === 5 ? "Keepstar" : "Astrahus"}"><span>${labels[n]}</span></div>`).join("")}</div>` : ""}${yours ? `<div class="property-actions"><button id="upgrade-property" ${canBuild ? "" : "disabled"}>BUILD ${space.buildCost ? money(space.buildCost) : ""}</button><button id="sell-building" ${E.canSellBuilding(state, D, p, index) ? "" : "disabled"}>SELL ONE BUILDING</button><button id="sell-group" ${space.group && E.groupSpaces(space.group, D).some((s) => p.upgrades[s.index]) ? "" : "disabled"}>SELL ALL IN COLOR SET</button><button id="mortgage-property" ${E.canMortgage(state, D, p, index) ? "" : "disabled"}>MORTGAGE · +${money(space.price / 2)}</button><button id="unmortgage-property" ${p.mortgaged[index] && p.cash - committedBid >= E.unmortgageCost(D, index) ? "" : "disabled"}>REDEEM · ${money(E.unmortgageCost(D, index))}</button></div>` : ""}<p class="property-note">Build and sell evenly. Mortgaged leases collect no rent. Sell all buildings in a color set before mortgaging or trading it.</p></div>`;
+  $("#property-detail").innerHTML = `<div class="property-sheet" style="--sheet-color:${color}"><div class="property-banner"><div class="eyebrow">${space.group ? D.groups[space.group].name : space.type}</div><h2>${space.name}</h2></div><p class="property-flavor">${space.flavor || space.text}</p>${space.systemId ? `<p class="hotspot-link">${space.region} · <a href="research.html#hotspots" target="_blank" rel="noreferrer">Hotspot history ↗</a> · <a href="https://zkillboard.com/system/${space.systemId}/" target="_blank" rel="noreferrer">Killboard ↗</a></p>` : ""}<div class="property-stats"><div><span>CLAIM</span><b>${money(space.price)}</b></div><div><span>OWNER</span><b>${owner ? h(owner.name) : "BANK"}</b></div><div><span>STATUS</span><b>${owner?.mortgaged[index] ? "MORTGAGED" : space.group ? labels[level] : "ACTIVE"}</b></div></div><div class="rent-table">${rent}</div>${space.group ? `<div class="citadel-track">${[1, 2, 3, 4, 5].map((n) => `<div class="${level === n ? "built" : ""}"><img src="assets/${n === 5 ? "keepstar" : "astrahus"}.png" alt="${n === 5 ? "Keepstar" : "Astrahus"}"><span>${labels[n]}</span></div>`).join("")}</div>` : ""}${yours ? `<div class="property-actions"><button id="upgrade-property" ${canBuild ? "" : "disabled"}>BUILD ${space.buildCost ? money(space.buildCost) : ""}</button><button id="sell-building" ${E.canSellBuilding(state, D, p, index) ? "" : "disabled"}>SELL ONE BUILDING</button><button id="sell-group" ${space.group && E.groupSpaces(space.group, D).some((s) => p.upgrades[s.index]) ? "" : "disabled"}>SELL ALL IN COLOR SET</button><button id="mortgage-property" ${E.canMortgage(state, D, p, index) ? "" : "disabled"}>MORTGAGE · +${money(space.price / 2)}</button><button id="unmortgage-property" ${p.mortgaged[index] && p.cash - committedBid >= E.unmortgageCost(D, index) ? "" : "disabled"}>REDEEM · ${money(E.unmortgageCost(D, index))}</button></div>` : ""}<p class="property-note">Build and sell evenly. Mortgaged claims collect no rent. Sell all buildings in a color set before mortgaging or trading it.</p></div>`;
   if (yours) {
     const actions = { "upgrade-property": () => S.build(state, D, 0, index), "sell-building": () => E.sellBuilding(state, D, p, index), "sell-group": () => E.sellGroup(state, D, p, space.group), "mortgage-property": () => E.mortgage(state, D, p, index), "unmortgage-property": () => E.unmortgage(D, p, index, state) };
     Object.entries(actions).forEach(([id, run]) => $(`#${id}`).addEventListener("click", () => {
@@ -273,7 +284,7 @@ function inspectSpace(index) {
 }
 function renderFinance() {
   const p = state.players[0];
-  $("#finance-content").innerHTML = `<p>Wallet: <strong>${money(p.cash)}</strong> · Bank liquidation value: ${money(E.liquidationValue(D, p))}</p><p>Click a lease to build, sell, mortgage, or redeem. Bots pause while you manage assets.</p><div class="asset-list">${p.properties.map((i) => `<button data-asset="${i}" style="--asset:${D.groups[D.spaces[i].group]?.color || "#8b82e8"}"><strong>${D.spaces[i].name}</strong><small>${p.mortgaged[i] ? "MORTGAGED" : p.upgrades[i] === 5 ? "KEEPSTAR" : `${p.upgrades[i] || 0} ASTRAHUS`}</small></button>`).join("") || "No leases. Yet."}</div><h3>Held cards</h3>${p.jailCardDecks.map((d) => `<p>${S.deck(D, d).find((c) => c.effect.type === "escape").title} · ${d === "mail" ? "Alliance Mail" : "Local Spike"}</p>`).join("") || "<p>No escape cards.</p>"}`;
+  $("#finance-content").innerHTML = `<p>Wallet: <strong>${money(p.cash)}</strong> · Bank liquidation value: ${money(E.liquidationValue(D, p))}</p><p>Click a claim to build, sell, mortgage, or redeem. Bots pause while you manage assets.</p><div class="asset-list">${p.properties.map((i) => `<button data-asset="${i}" style="--asset:${D.groups[D.spaces[i].group]?.color || "#8b82e8"}"><strong>${D.spaces[i].name}</strong><small>${p.mortgaged[i] ? "MORTGAGED" : p.upgrades[i] === 5 ? "KEEPSTAR" : `${p.upgrades[i] || 0} ASTRAHUS`}</small></button>`).join("") || "No claims. Yet."}</div><h3>Held cards</h3>${p.jailCardDecks.map((d) => `<p>${S.deck(D, d).find((c) => c.effect.type === "escape").title} · ${d === "mail" ? "Militia Orders" : "Local Comms"}</p>`).join("") || "<p>No escape cards.</p>"}`;
   $$('[data-asset]').forEach((button) => button.addEventListener("click", () => inspectSpace(Number(button.dataset.asset))));
 }
 function showFinance() { if (!state || busy) return; clearTimeout(timer); renderFinance(); showDialog("finance-modal"); }
@@ -283,7 +294,7 @@ function renderBotOffer() {
   $("#offer-pilot").style.setProperty("--pilot",proposer.color);
   $("#offer-pilot").innerHTML = `<img src="${proposer.ship}" alt="${h(proposer.shipName)}"><div><small>PILOT ${trade.from + 1} · BOT · ${h(proposer.shipName)}</small><strong>${h(proposer.name)}</strong></div>`;
   function terms(side, owner, receive) {
-    return `<section class="offer-side ${receive ? 'offer-receive' : 'offer-give'}"><h3>${receive ? 'YOU RECEIVE' : 'YOU GIVE'}</h3><strong class="offer-cash">${money(side.cash)} ISK</strong><ul>${side.properties.map(index=>`<li><span class="offer-deed-color" style="background:${D.groups[D.spaces[index].group]?.color || '#8b82e8'}"></span><b>${h(D.spaces[index].name)}</b>${owner.mortgaged[index] ? `<small>MORTGAGED · recipient owes ${money(D.spaces[index].price / 20)} interest or ${money(E.unmortgageCost(D,index))} to redeem now.</small>` : '<small>Unmortgaged lease</small>'}</li>`).join('')}${side.cards.map(deck=>`<li><b>${h(S.deck(D,deck).find(card=>card.effect.type==='escape').title)}</b><small>Held escape card</small></li>`).join('')}${!side.properties.length && !side.cards.length ? '<li class="offer-empty">No leases or cards</li>' : ''}</ul></section>`;
+    return `<section class="offer-side ${receive ? 'offer-receive' : 'offer-give'}"><h3>${receive ? 'YOU RECEIVE' : 'YOU GIVE'}</h3><strong class="offer-cash">${money(side.cash)} ISK</strong><ul>${side.properties.map(index=>`<li><span class="offer-deed-color" style="background:${D.groups[D.spaces[index].group]?.color || '#8b82e8'}"></span><b>${h(D.spaces[index].name)}</b>${owner.mortgaged[index] ? `<small>MORTGAGED · recipient owes ${money(D.spaces[index].price / 20)} interest or ${money(E.unmortgageCost(D,index))} to redeem now.</small>` : '<small>Unmortgaged claim</small>'}</li>`).join('')}${side.cards.map(deck=>`<li><b>${h(S.deck(D,deck).find(card=>card.effect.type==='escape').title)}</b><small>Held escape card</small></li>`).join('')}${!side.properties.length && !side.cards.length ? '<li class="offer-empty">No claims or cards</li>' : ''}</ul></section>`;
   }
   $("#offer-terms").innerHTML = terms(trade.give,proposer,true) + terms(trade.take,state.players[trade.to],false);
   showDialog("trade-offer-modal");
@@ -294,7 +305,7 @@ function tradeSide(p, name) {
 function renderTrade() {
   const id = Number($("#trade-partner").value);
   $("#trade-terms").innerHTML = tradeSide(state.players[0], "give") + tradeSide(state.players[id], "take");
-  $("#trade-feedback").textContent = "No loans or rent immunity. Mortgaged leases carry an immediate Bank charge for the recipient.";
+  $("#trade-feedback").textContent = "No loans or rent immunity. Mortgaged claims carry an immediate Bank charge for the recipient.";
   updateTradeStanding();
 }
 function showTrade() {
@@ -348,10 +359,11 @@ function loadGame() {
     const parsed = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (!S.validate(parsed, D)) { toast("Save unavailable", "This campaign is incomplete or uses an older rules version."); return false; }
     // Player-entered text is escaped; art and styles always come from local metadata.
+    const profiles = campaignProfiles(parsed.players[0].faction, parsed.players.slice(1).map(p => p.botIdentityId), parsed.players[0].name);
     parsed.players.forEach((p, i) => {
       const ship = i ? null : PLAYER_SHIPS.find((s) => s.name === p.shipName) || PLAYER_SHIPS[0];
-      if (i) Object.assign(p, D.botProfiles[i - 1], { isBot: true, shipName: ["Drake", "Dominix", "Providence"][i - 1] });
-      else Object.assign(p, { ship: ship.path, shipName: ship.name, color: "#55d8e8", isBot: false, motto: "probably human" });
+      if (i) Object.assign(p, profiles[i]);
+      else Object.assign(p, profiles[0], { ship: ship.path, shipName: ship.name });
     });
     parsed.log.forEach((entry) => { entry.color = /^#[0-9a-f]{6}$/i.test(entry.color) ? entry.color : "#93aab3"; });
     state = parsed; generation++; busy = false; paused = false; visualPositions = null; boardCamera.reset();
@@ -374,6 +386,7 @@ function renderShipPicker() {
 }
 function init() {
   renderBoard(); renderShipPicker();
+  $$('[name="militia"]').forEach(input => input.addEventListener("change", () => { selectedFaction = input.value; }));
   boardCamera = BoardCamera.create($('#board-viewport'),$('#board-camera'));
   soundEffects = EveSound.create(); activityLog = ActivityLog.create(() => state); feedback = GameFeedback.create(soundEffects,D);
   $("#start-game").addEventListener("click", startGame);
@@ -381,7 +394,7 @@ function init() {
   $("#roll-button").addEventListener("click", () => { if (!state || state.players[B.actor(state)].isBot) return; animateAction(() => state.phase === "utility" ? S.utilityRoll(state, D, dice()) : S.roll(state, D, dice())); });
   $("#end-turn-button").addEventListener("click", () => { if (state && !state.players[state.current].isBot) commit(() => S.end(state, D)); });
   $("#resolve-card").addEventListener("click", () => commit(() => S.acknowledge(state, D)));
-  $("#new-game-button").addEventListener("click", () => { if (!state || confirm("End this campaign and clear the saved lease?")) resetGame(); });
+  $("#new-game-button").addEventListener("click", () => { if (!state || confirm("End this campaign and clear its save?")) resetGame(); });
   $("#pause-bots").addEventListener("click", () => { paused = !paused; render(); schedule(); });
   $("#view-toggle").addEventListener("click", (e) => { const tilted = $("#board").classList.toggle("tactical-3d"); e.currentTarget.textContent = tilted ? "FLAT VIEW" : "TILT BOARD"; e.currentTarget.setAttribute("aria-pressed", String(tilted)); });
   $("#finance-button").addEventListener("click", showFinance);

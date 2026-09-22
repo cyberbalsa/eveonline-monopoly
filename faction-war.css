@@ -1,0 +1,69 @@
+/* Caldari blue / Gallente green; color-set strips retain classic readability. */
+:root { --calmil:#73c5ff; --galmil:#77dda4; --gold:#a4ceb9; }
+body { background:radial-gradient(ellipse at 0 20%,#133c5b55,transparent 52%),radial-gradient(ellipse at 100% 70%,#12442c55,transparent 52%),#050b12; }
+.brand-mark { color:var(--calmil); border-color:#457f94; background:linear-gradient(135deg,#133c5b,#164a37); }
+.brand small { color:var(--galmil); }
+.status-pill { color:#a0d1c5; }
+.topbar { border-image:linear-gradient(90deg,var(--calmil),#2a434c,var(--galmil)) 1; }
+.board-center > img { opacity:1; }
+.center-vignette { background:radial-gradient(ellipse at 50% 40%,#020b1255,transparent 65%); }
+.center-copy { justify-content:flex-start; padding-top:20%; }
+.center-copy h1 { font-size:80px; line-height:.89; letter-spacing:.035em; margin-top:18px; }
+.center-copy > p { font-size:26px; letter-spacing:.12em; margin-top:20px; }
+.center-copy > p i { font-size:14px; font-style:normal; color:#92a8b5; padding:0 16px; }
+.center-copy .calmil-color { color:var(--calmil); }
+.center-copy .galmil-color { color:var(--galmil); }
+.center-copy > small { color:#b5c7cb; letter-spacing:.12em; }
+.center-copy .eyebrow { color:#b5c7cb; font-size:11px; }
+.center-rule { margin:15px 0; }
+.deck-back { bottom:11%; }
+.deck-back.mail-card { border-color:#629fd0; }
+.deck-back.local-card { border-color:#64b28c; background:repeating-linear-gradient(45deg,#0d2a23 0 4px,#11382a 4px 8px); box-shadow:3px 3px 0 #050b0f,5px 5px 0 #64b28c,8px 8px 0 #050b0f,10px 10px 0 #64b28c,0 14px 18px #0008; }
+.deck-back.local-card strong { color:#a9edc4; }
+.modal-art { display:flex; flex-direction:column; justify-content:space-evenly; min-height:620px; background:url('assets/warzone-command.svg') center/cover; }
+.modal-art::after { pointer-events:none; background:linear-gradient(90deg,transparent 70%,#08151c); }
+.militia-art-side { position:relative; display:flex; flex-direction:column; align-items:center; flex:1; justify-content:center; z-index:1; }
+.militia-art-side img { width:90%; height:145px; margin:5px 0; object-fit:contain; filter:drop-shadow(0 0 18px #6baadb44); }
+.militia-art-side span { font:600 10px var(--display); letter-spacing:.2em; color:#9fb5c4; }
+.militia-art-side strong { font:800 42px/.95 var(--display); letter-spacing:.08em; color:var(--calmil); }
+.militia-art-side small { margin-top:8px; font:600 10px var(--display); letter-spacing:.16em; color:#9fb5c4; }
+.galmil-art strong { color:var(--galmil); }
+.galmil-art img { filter:drop-shadow(0 0 18px #75d9a144); }
+.militia-art-divider { z-index:1; align-self:center; color:#a8bfc8; padding:8px 16px; border:1px solid #57747b; font:700 13px var(--display); }
+.launch-modal .modal-content { padding:26px 30px; }
+.launch-modal h2 { line-height:.96; margin:14px 0; }
+.faction-picker { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:0; margin:17px 0; border:0; min-width:0; }
+.faction-picker legend { margin-bottom:7px; color:#a1b9c5; font:700 11px var(--display); letter-spacing:.12em; }
+.faction-picker label { display:flex; align-items:center; gap:9px; margin:0; padding:10px; cursor:pointer; border:1px solid #344954; border-radius:3px; background:#0b1922; }
+.faction-picker label:has(:checked) { border-color:var(--calmil); background:#133650; }
+.faction-picker .galmil-choice:has(:checked) { border-color:var(--galmil); background:#163b2c; }
+.faction-picker input { width:15px; margin:0; accent-color:var(--calmil); }
+.faction-picker .galmil-choice input { accent-color:var(--galmil); }
+.faction-picker strong { display:block; font:700 19px var(--display); color:var(--calmil); }
+.faction-picker .galmil-choice strong { color:var(--galmil); }
+.faction-picker small { display:block; margin-top:3px; font:10px var(--body); letter-spacing:0; color:#b9cbd0; }
+.faction-picker label:focus-within { outline:2px solid #eef7fa; outline-offset:3px; }
+.launch-modal .hangar-heading { gap:12px; }
+.launch-modal .hangar-heading small { max-width:230px; text-align:right; line-height:1.4; }
+.bot-preview { display:block; }
+.bot-preview span { display:block; color:#b2cbd3; font-size:10px; }
+.bot-preview small { display:block; margin-top:4px; color:#91a9b5; font-size:11px; line-height:1.4; }
+.militia-badge { color:var(--galmil); font:600 10px var(--display); letter-spacing:.08em; }
+.militia-badge[data-faction="calmil"] { color:var(--calmil); }
+.hotspot-link { color:#9bceda; font-size:12px; }
+.research-table-wrap { overflow-x:auto; }
+.research-page .hotspot-table { min-width:590px; }
+.hotspot-table td:nth-child(n+3) { text-align:right; font-variant-numeric:tabular-nums; }
+.hotspot-table .history-spark { white-space:nowrap; }
+.history-spark i { display:inline-block; width:5px; vertical-align:bottom; margin-right:2px; background:var(--galmil); }
+@media(max-width:700px) {
+  .modal-art { min-height:138px; height:138px; flex-direction:row; align-items:center; }
+  .militia-art-side { height:138px; }
+  .militia-art-side img { height:70px; width:110px; margin:0; }
+  .militia-art-side strong { font-size:22px; }
+  .militia-art-side span,.militia-art-side small { display:none; }
+  .militia-art-divider { font-size:10px; padding:5px 8px; }
+  .launch-modal .modal-content { padding:22px 20px; }
+  .faction-picker label { padding:8px; gap:7px; }
+  .faction-picker small { font-size:9px; }
+}

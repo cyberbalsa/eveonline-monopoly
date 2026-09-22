@@ -30,7 +30,7 @@
       }
       token.style.left = `${point.x - 36}px`; token.style.top = `${point.y - 34}px`; token.style.setProperty('--token',p.color);
       token.classList.toggle('moving',busy); token.classList.toggle('current-pawn',id === state.current);
-      token.setAttribute('aria-label',`Locate pilot ${id + 1}: ${p.name}, ${p.shipName}, ${state.players[id].inJail ? 'banned at ' : ''}${GAME_DATA.spaces[index].name}`);
+      token.setAttribute('aria-label',`Locate pilot ${id + 1}: ${p.name}, ${p.shipName}, ${state.players[id].inJail ? 'reshipping at ' : ''}${GAME_DATA.spaces[index].name}`);
       token.title = `${p.name} · ${p.shipName} · ${GAME_DATA.spaces[index].name}`;
       token.dataset.position = index;
       lines.push(`<line x1="${r.x + r.width / 2}" y1="${r.y + r.height / 2}" x2="${point.x}" y2="${point.y}" stroke="${p.color}"/><circle cx="${r.x + r.width / 2}" cy="${r.y + r.height / 2}" r="5" fill="${p.color}"/>`);

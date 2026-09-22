@@ -10,7 +10,7 @@ async function offer(page){return page.evaluate(()=>{
 test('bot trade opens centered modal with correct sides and remains pending through reload',async({page})=>{
   const data=await offer(page);const modal=page.locator('#trade-offer-modal');
   await expect(modal).toBeVisible();await expect(page.locator('#offer-pilot')).toContainText(data.name);
-  await expect(page.locator('.offer-receive')).toContainText('500M');await expect(page.locator('.offer-receive')).toContainText(data.take);await expect(page.locator('.offer-receive')).toContainText('MORTGAGED');await expect(page.locator('.offer-receive')).toContainText('Streamer Privilege');
+  await expect(page.locator('.offer-receive')).toContainText('500M');await expect(page.locator('.offer-receive')).toContainText(data.take);await expect(page.locator('.offer-receive')).toContainText('MORTGAGED');await expect(page.locator('.offer-receive')).toContainText('Instawarp bookmark');
   await expect(page.locator('.offer-give')).toContainText(data.give);
   expect(await modal.evaluate(e=>{const r=e.getBoundingClientRect();return Math.abs((r.left+r.right)/2-innerWidth/2)<3&&Math.abs((r.top+r.bottom)/2-innerHeight/2)<3;})).toBe(true);
   await page.keyboard.press('Escape');await expect(modal).toBeVisible();

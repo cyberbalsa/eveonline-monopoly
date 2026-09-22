@@ -16,14 +16,14 @@ function hold(s, id, deck) {
   s.decks[deck].splice(s.decks[deck].indexOf(index), 1);
   s.players[id].jailCardDecks.push(deck);
 }
-test('Winning EVE is the jail meme, never an alternate win condition', () => {
-  assert.equal(D.spaces[10].name,'Winning EVE');assert.equal(D.spaces[10].caption,'TOUCH GRASS');
-  assert.equal(D.spaces[30].name,'Banned for RMT');assert.equal(D.spaces[30].type,'gotojail');
-  assert.ok(!JSON.stringify(D).includes('Team Security'));
-  for(const deck of [D.mailCards,D.localCards]) for(const card of deck.filter(c=>['escape','jail'].includes(c.effect.type))) assert.ok(card.body.includes('Winning EVE'));
+test('Reship Bay retains classic jail rules and does not end the campaign', () => {
+  assert.equal(D.spaces[10].name,'Reship Bay');assert.equal(D.spaces[10].caption,'JUST RESHIPPING');
+  assert.equal(D.spaces[30].name,'Gate Camp');assert.equal(D.spaces[30].type,'gotojail');
+  assert.equal(D.spaces[10].type,'corner');
+  for(const deck of [D.mailCards,D.localCards]) for(const card of deck.filter(c=>['escape','jail'].includes(c.effect.type))) assert.ok(card.body.includes('Reship Bay'));
   const s=game();S.jail(s,0);
   assert.equal(s.players[0].position,10);assert.equal(s.players[0].inJail,true);assert.equal(s.gameOver,false);
-  assert.ok(s.log.at(-1).text.includes('touch grass'));
+  assert.ok(s.log.at(-1).text.includes('Bring a spare'));
   assert.equal(S.bail(s,D),true);assert.equal(s.players[0].cash,1450);assert.equal(s.players[0].inJail,false);
 });
 function forceCard(s, deck, find) {
@@ -60,7 +60,7 @@ test("all 32 meme cards link to existing, uniquely identified research notes", (
     assert.ok(ids.includes(card.source.split("#")[1]), `missing source notes for ${card.title}`);
   }
 });
-test("salary pays once on passing or landing on Undock, Freeport pays nothing", () => {
+test("salary pays once on passing or landing on Undock, Ship Spinning pays nothing", () => {
   const s = game(); s.players[0].position = 39;
   S.roll(s, D, [1, 2]); assert.equal(s.players[0].cash, 1700); assert.equal(s.phase, "card");
   const t = game(); t.players[0].position = 36;
@@ -72,7 +72,7 @@ test("a purchase decision blocks another roll and end-turn, including after doub
   assert.equal(s.phase, "purchase"); assert.equal(S.end(s,D), false); assert.equal(S.roll(s,D,[2,3]), false);
   S.purchase(s,D,true); assert.equal(s.phase,"roll"); assert.equal(s.doublesRun,1);
 });
-test("three doubles send directly to the RMT ban without movement or salary", () => {
+test("three doubles send directly to Reship Bay without movement or salary", () => {
   const s = game(); s.doublesRun = 2; s.players[0].position = 39;
   S.roll(s,D,[6,6]); assert.equal(s.players[0].position,10); assert.equal(s.players[0].cash,1500); assert.equal(s.phase,"end"); assert.equal(s.players[0].inJail,true);
 });
@@ -87,16 +87,16 @@ test("jail doubles move without an extra roll; third failure charges 50 before m
   const t = game(); S.jail(t,0); t.players[0].jailTurns=2; S.roll(t,D,[2,3]);
   assert.equal(t.players[0].cash,1450); assert.equal(t.players[0].position,15); assert.equal(t.players[0].inJail,false);
 });
-test("both streamer cards are held, tradable, usable before rolling, and return to their own deck", () => {
+test("both escape cards are held, tradable, usable before rolling, and return to their own deck", () => {
   for (const deck of ["mail","local"]) {
     const s = game(), index = forceCard(s,deck,c=>c.effect.type==="escape");
-    assert.match(S.deck(D,deck)[index].title,/Streamer/i);
+    assert.equal(S.deck(D,deck)[index].effect.type,"escape");
     S.acknowledge(s,D); assert.deepEqual(s.players[0].jailCardDecks,[deck]); assert.equal(s.decks[deck].length,15);
     S.jail(s,0); s.phase="roll"; assert.equal(S.bail(s,D,deck),true);
     assert.equal(s.players[0].cash,1500); assert.equal(s.players[0].inJail,false); assert.equal(s.decks[deck].at(-1),index); assert.equal(s.phase,"roll"); assert.ok(S.validate(s,D));
   }
 });
-test("nearest bridge doubles rent and a nearest utility card uses fresh dice at 10x", () => {
+test("nearest logistics route doubles rent and a nearest utility card uses fresh dice at 10x", () => {
   const s=game(); s.players[0].position=7; s.players[1].properties=[15];
   forceCard(s,"local",c=>c.effect.type==="nearestTransit"); S.acknowledge(s,D);
   assert.equal(s.players[0].cash,1450); assert.equal(s.players[1].cash,1550);
