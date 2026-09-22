@@ -1,0 +1,12 @@
+{
+  "date": "2026-09-21",
+  "policy": "One hard policy versus three fixed buy-at-200-reserve/build-to-three policies",
+  "rules": "Shared classic rules and trade-acceptance logic; rotating seats and hard doctrines",
+  "actionHorizon": 8000,
+  "runs": [
+    { "command": "npm run benchmark -- 48 7919", "seeds": "7919–7966", "hardWins": 27, "baselineWins": 13, "unfinished": 8 },
+    { "command": "npm run benchmark -- 48 99001", "seeds": "99001–99048", "hardWins": 26, "baselineWins": 16, "unfinished": 6 }
+  ],
+  "combined": { "games": 96, "hardWins": 53, "baselineWins": 29, "unfinished": 14 },
+  "interpretation": "A local heuristic-baseline comparison, not an expert-human or published-agent benchmark. Unfinished games count in the denominator and are not wins. The live game has no action horizon."
+}
