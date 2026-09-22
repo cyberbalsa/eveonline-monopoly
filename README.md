@@ -2,6 +2,8 @@
 
 A free EVE Online Monopoly parody for one human and three bots. Pick a ship, rent out nullsec, and hope your account ban ends before the megathread does.
 
+[Play on GitHub Pages](https://cyberbalsa.github.io/eveonline-monopoly/) · [Source repository](https://github.com/cyberbalsa/eveonline-monopoly)
+
 ## Play
 
 Serve this folder with any static server:
@@ -22,7 +24,7 @@ Open **Jukebox** for Webamp and the 14-track [EVE Online soundtrack](https://arc
 2. In Settings → Pages, select **Deploy from a branch**.
 3. Choose the branch and **/ (root)**, then save.
 
-The `.nojekyll` file and relative asset paths support project URLs such as `username.github.io/eveonline-monopoly/`. This workspace has not been published to a GitHub account.
+The public repository publishes from `main`, at `/ (root)`, with HTTPS enabled. Pushes to `main` update the site. The `.nojekyll` file and relative asset paths also support forks at project URLs such as `username.github.io/eveonline-monopoly/`.
 
 ## Rules and bots
 
@@ -56,6 +58,6 @@ npm run test:e2e
 npm run benchmark -- 48 99001
 ```
 
-Node tests cover classic rule edge cases and seeded campaigns with conservation checks after every action. Playwright covers desktop and mobile, pending-decision reloads, auctions, jail cards, debt management, and project-subpath hosting. `.github/workflows/tests.yml` runs both suites on pushes and pull requests.
+Node tests cover classic rule edge cases and seeded campaigns with conservation checks after every action. Playwright covers desktop and mobile, all 32 cards, pending-decision reloads, auctions, jail cards, debt management, project-subpath hosting, and the jukebox lifecycle. Jukebox CI tests mock the external player and test CDN failure; actual Archive playback is checked separately in a browser. `.github/workflows/tests.yml` runs both suites on pushes and pull requests.
 
 EVE artwork is CCP intellectual property; Monopoly belongs to Hasbro. This is an unofficial, non-commercial fan project. The command-room backdrop is generated original art; the ships and structures are official renders. See the linked credits and source terms.
