@@ -7,9 +7,17 @@
     "test": "node --test tests/*.test.js",
     "test:e2e": "playwright test",
     "benchmark": "node scripts/benchmark.js",
+    "benchmark:frames": "node scripts/frame-benchmark.mjs",
+    "build:graphics": "node scripts/build-model-renderer.mjs",
     "serve": "python3 -m http.server 8080"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@gltf-transform/core": "4.2.1",
+    "@gltf-transform/extensions": "4.2.1",
+    "@playwright/test": "^1.63.0",
+    "draco3d": "1.5.7",
+    "esbuild": "0.25.10",
+    "meshoptimizer": "0.24.0",
+    "three": "0.180.0"
   }
 }

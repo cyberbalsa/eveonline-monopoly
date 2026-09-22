@@ -14,7 +14,11 @@ python3 -m http.server 8080
 
 Open `http://localhost:8080`. No build step, backend, account, API key, or runtime package install is needed. Ship art is local; web fonts have system fallbacks. Campaigns save after each completed rules action, including pending decisions. An animation interrupted by reload resumes at the resolved position.
 
-Choose a hull and initialize. Highest opening roll starts. Use **Assets & Buildings** to manage deeds and held cards, **Trade** to negotiate, and **Pause Bots** to think between actions. Clicking a deed pauses bot activity while its detail window is open. The **3D View** button tilts the board; ships, structures, and dice use animated CSS depth. Ship choice has no mechanical advantage.
+Choose a hull and initialize. Highest opening roll starts. Use **Assets & Buildings** to manage deeds and held cards, **Trade** to negotiate, and **Pause Bots** to think between actions. Clicking a deed pauses bot activity while its detail window is open. Ship choice has no mechanical advantage.
+
+The board fits the available browser viewport automatically. **Follow On** zooms into movement, tracks the ship, holds at the destination, and returns to the full board. **Fit Board** immediately cancels that camera move without changing the rules action. Use **+/−** and drag to inspect the board, or click a roster entry to locate its numbered ship. **Tilt Board** changes the board angle. Reduced-motion preferences disable automatic camera moves. Both decks stay face down until a card is drawn.
+
+Pawns and citadels use real EVE mesh geometry, simplified for board-sized miniatures, with project-authored metallic finishes. These are not full EVE client shaders or paint schemes. Each built deed shows an Astrahus or Keepstar mesh plus its exact count. Models and the renderer are local; WebGL failures fall back to local ship images. The colored icons come from CCP's original 2014 Phoebe pack. See [asset provenance and rendering notes](research.html#art).
 
 Open **Jukebox** for Webamp and the 14-track [EVE Online soundtrack](https://archive.org/details/eve-online-soundtrack/) by Jón Hallur Haraldsson. Press Play to start; music never autoplays. Hide keeps it playing, × pauses and closes the panel, and Reset restores the player layout. Music volume is independent of the game's sound effects. Webamp 2.3.1 loads on demand from jsDelivr with an integrity check. MP3s are hotlinked to Archive.org, not stored in this repository. If either service is unavailable, the board still works and the player offers a direct Archive link.
 
@@ -45,6 +49,8 @@ All 32 cards have [reference notes](research.html#cards), linked from each drawn
 - `session.js`: serializable turns, cards, auctions, debts, jail, bankruptcy.
 - `bots.js`: opponent decisions; independent of DOM and animation.
 - `game.js`: UI, animations, audio, autosave and human controls.
+- `board-camera.js`, `board-pieces.js`, `board-ui.css`: viewport fitting, follow camera, numbered pieces, and old-style colored controls.
+- `board-models.js`: renderer source; `vendor/board-models.min.js`: checked-in Three.js bundle; `assets/models/`: local geometry-only GLBs.
 - `music.js`, `jukebox.html`, `jukebox.js`, `jukebox.css`, `soundtrack.js`: optional Webamp panel and Archive-hosted playlist.
 - `styles.css`, `index.html`, `assets/`: static presentation.
 
@@ -56,8 +62,17 @@ npm test
 npx playwright install chromium
 npm run test:e2e
 npm run benchmark -- 48 99001
+npm run build:graphics
+# With the local static server running:
+npm run benchmark:frames -- http://127.0.0.1:8080
 ```
 
-Node tests cover classic rule edge cases and seeded campaigns with conservation checks after every action. Playwright covers desktop and mobile, all 32 cards, pending-decision reloads, auctions, jail cards, debt management, project-subpath hosting, and the jukebox lifecycle. Jukebox CI tests mock the external player and test CDN failure; actual Archive playback is checked separately in a browser. `.github/workflows/tests.yml` runs both suites on pushes and pull requests.
+Node tests cover classic rule edge cases, seeded campaigns with conservation checks after every action, camera bounds, mesh contents, and icon provenance. Playwright covers desktop and mobile, all 32 cards, hidden decks, camera follow/cancellation, viewport resizing, model rendering, WebGL failure, off-screen rendering suspension, pending-decision reloads, auctions, jail cards, debt management, project-subpath hosting, and the jukebox lifecycle. Jukebox CI tests mock the external player and test CDN failure; actual Archive playback is checked separately in a browser. `.github/workflows/tests.yml` runs both suites on pushes and pull requests.
 
-EVE artwork is CCP intellectual property; Monopoly belongs to Hasbro. This is an unofficial, non-commercial fan project. The command-room backdrop is generated original art; the ships and structures are official renders. See the linked credits and source terms.
+The frame benchmark measures idle and moving boards with four ships, then a legal maximum-supply layout (32 houses and 12 hotels). It records rAF frame pacing, slow frames, renderer CPU submission time, and GPU identification in [tests/frame-benchmark-results.json](tests/frame-benchmark-results.json). An optional second URL compares a previous build. Run it without other browser test suites competing for the same CPU/GPU. Mobile results are viewport emulation, not measurements on physical phones. Mesh rendering is capped at 30 Hz while moving and sleeps at rest; the camera uses display-rate animation. Fixed structure views are cached rather than re-rendered every frame.
+
+The recorded comparison against `b0976e4` used headless Chromium with the SwiftShader software GPU, 1440×1000 and 390×844 viewports, and 3.5-second samples after warm-up. The updated scenarios measured 58.3–60.0 FPS. The heavily built desktop board improved from 21.1 to 58.9 FPS during movement; its 95th-percentile frame time fell from 83.3 to 16.8 ms. These are local measurements, not a universal performance promise. The previous mobile layout cropped the board, so its mobile result is not an equal-content comparison with the new auto-fit view.
+
+Changing renderer source requires `npm run build:graphics` before publishing. Asset-import scripts document the pinned mesh source, geometry-only conversion, simplification, and byte-identical icon extraction. The original texture packs are not required to play or build the renderer.
+
+EVE artwork and hull geometry are CCP intellectual property; Monopoly belongs to Hasbro. This is an unofficial, non-commercial fan project. The command-room backdrop is generated original art. This material is used with limited permission of CCP Games. No official affiliation or endorsement by CCP Games is stated or implied. See the linked credits and source terms.

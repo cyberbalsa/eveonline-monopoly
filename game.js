@@ -16,6 +16,7 @@ const PLAYER_SHIPS = [
 ];
 let state = null, selectedShip = 0, timer = null, generation = 0, busy = false, paused = false;
 let audioEnabled = true, audioContext = null, visualPositions = null, inspected = null;
+let boardCamera = null;
 const h = (text) => String(text).replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[c]);
 const money = (value) => `${Number(value.toFixed(2)).toLocaleString()}M`;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,12 +42,13 @@ function renderBoard() {
   D.spaces.forEach((space, index) => {
     const cell = document.createElement("button"), [row, column] = boardPosition(index);
     cell.type = "button";
-    cell.className = `space ${["corner", "gotojail"].includes(space.type) ? "corner" : space.type} ${space.deck || ""}`;
+    cell.className = `space ${["corner", "gotojail"].includes(space.type) ? "corner" : space.type} ${space.deck || ""} ${index % 10 && (column === 1 || column === 11) ? 'side-space' : ''}`;
     cell.dataset.index = index; cell.style.gridRow = row; cell.style.gridColumn = column;
     cell.setAttribute("aria-label", space.name);
     cell.title = space.flavor || space.text || space.name;
     if (space.group) cell.style.setProperty("--group-color", D.groups[space.group].color);
-    cell.innerHTML = `${space.group ? '<span class="color-bar"></span>' : ""}${space.icon ? `<span class="space-icon">${space.icon}</span>` : ""}<span class="space-name">${space.name}</span><span class="space-price">${space.price ? `${space.price}M ISK` : space.amount ? `PAY ${space.amount}M` : ""}</span><span class="upgrade-pips"></span><span class="tokens"></span>`;
+    const icon = BoardPieces.icon(space,index);
+    cell.innerHTML = `${space.group ? '<span class="color-bar"></span>' : ""}${icon ? `<img class="eve-space-icon" src="assets/icons/${icon}.png" alt="">` : ""}<span class="space-name">${space.name}</span><span class="space-price">${space.price ? `${space.price}M ISK` : space.amount ? `PAY ${space.amount}M` : ""}</span><span class="upgrade-pips"></span><span class="tokens"></span>`;
     cell.addEventListener("click", () => inspectSpace(index));
     $("#board").appendChild(cell);
   });
@@ -61,17 +63,20 @@ function render() {
   const current = state.players[state.current], human = state.players[0], actor = state.players[B.actor(state)];
   $("#turn-counter").textContent = `ROUND ${state.turn}`;
   $("#bank-supply").innerHTML = `<span>BANK SUPPLY</span><b>${state.bank.houses} ASTRAHUS</b><b>${state.bank.hotels} KEEPSTARS</b>`;
-  $("#active-pilot").innerHTML = `<img class="pilot-portrait" src="${current.ship}" alt="${current.shipName}" style="--pilot:${current.color}"><div><h3>${h(current.name)}</h3><p>${current.isBot ? "AUTOPILOT" : "HUMAN"} · <b>${money(current.cash)}</b></p><p>${current.shipName} · ${current.motto}</p></div>`;
-  $("#roster").innerHTML = state.players.map((p, i) => `<div class="roster-row ${i === state.current ? "active" : ""} ${p.bankrupt ? "bankrupt" : ""}" style="--pilot:${p.color}"><img src="${p.ship}" alt="${p.shipName}"><div><strong>${h(p.name)}</strong><small>${p.bankrupt ? "BIOMASSED" : `${p.properties.length} LEASES · ${p.strategyLabel || p.shipName}`}</small></div><div class="roster-money">${money(p.cash)}<small>${p.inJail ? "RMT BAN" : D.spaces[p.position].name}</small></div></div>`).join("");
+  $("#active-pilot").innerHTML = `<img class="pilot-portrait" src="${current.ship}" alt="${current.shipName}" style="--pilot:${current.color}"><div><h3><span class="pilot-number" style="--pilot:${current.color}">${state.current + 1}</span> ${h(current.name)}</h3><p>${current.isBot ? "AUTOPILOT" : "HUMAN"} · <b>${money(current.cash)}</b></p><button class="pilot-location" data-locate="${state.current}">${current.inJail ? "BANNED · " : ""}${D.spaces[visualPositions?.[state.current] ?? current.position].name} ↗</button></div>`;
+  $("#roster").innerHTML = state.players.map((p, i) => `<button type="button" data-locate="${i}" ${p.bankrupt ? 'disabled' : ''} aria-label="Locate pilot ${i + 1}: ${h(p.name)}" class="roster-row ${i === state.current ? "active" : ""} ${p.bankrupt ? "bankrupt" : ""}" style="--pilot:${p.color}"><span class="pilot-number">${i + 1}</span><img src="${p.ship}" alt="${p.shipName}"><div><strong>${i === 0 ? 'YOU · ' : ''}${h(p.name)}</strong><small>${p.bankrupt ? "BIOMASSED" : `${p.properties.length} LEASES · ${p.shipName}`}</small><span class="roster-location">${p.inJail ? "RMT BAN" : D.spaces[visualPositions?.[i] ?? p.position].name}</span></div><div class="roster-money">${money(p.cash)}<small>LOCATE ↗</small></div></button>`).join("");
+  $$('[data-locate]').forEach(button => button.addEventListener('click',() => locatePlayer(Number(button.dataset.locate))));
   $$(".space").forEach((cell) => {
     const index = Number(cell.dataset.index), owner = E.getOwner(state, index), count = owner?.upgrades[index] || 0;
-    cell.classList.toggle("active-space", index === current.position);
+    cell.classList.toggle("active-space", index === (visualPositions?.[state.current] ?? current.position));
+    cell.style.setProperty('--active-color',current.color);
     cell.classList.toggle("mortgaged", Boolean(owner?.mortgaged[index]));
     $(".owner-rail", cell)?.remove();
     if (owner) { cell.style.setProperty("--owner", owner.color); cell.insertAdjacentHTML("beforeend", '<span class="owner-rail"></span>'); }
-    $(".upgrade-pips", cell).innerHTML = count === 5 ? '<img class="structure-token tier-5" src="assets/keepstar.png" alt="Keepstar">' : Array.from({ length: count }, () => '<img class="structure-token house-token" src="assets/astrahus.png" alt="Astrahus">').join("");
-    $(".tokens", cell).innerHTML = state.players.map((p, i) => (visualPositions?.[i] ?? p.position) === index && !p.bankrupt ? `<span class="ship-token ${busy ? "warping" : ""}" data-player="${i}" style="--token:${p.color};--token-order:${i}" title="${h(p.name)} · ${p.shipName}"><span class="ship-glow"></span><img src="${p.ship}" alt="${p.shipName} pawn"></span>` : "").join("");
+    BoardPieces.buildings(cell,count);
+    $(".tokens", cell).innerHTML = BoardPieces.chips(state.players,index,visualPositions);
   });
+  BoardPieces.sync(state,visualPositions,busy,locatePlayer);
   $("#event-log").innerHTML = state.log.slice(-40).reverse().map((entry) => `<p class="log-entry" style="--entry:${entry.color}">${h(entry.text)}</p>`).join("");
   const utility = state.phase === "utility";
   $("#roll-button").disabled = busy || state.gameOver || (utility ? actor.isBot : current.isBot || current.bankrupt || state.phase !== "roll");
@@ -96,7 +101,7 @@ function decision(text, actions = []) {
 function renderDecisions() {
   const p = state.players[state.current], actor = state.players[B.actor(state)];
   $("#decision-box").hidden = true;
-  if (state.phase !== "card") closeDialog("card-modal");
+  if (state.phase !== "card") { closeDialog("card-modal"); $("#drawn-card").replaceChildren(); }
   if (state.phase !== "auction") closeDialog("auction-modal");
   if (state.phase === "over") {
     const winner = state.players.find((p) => !p.bankrupt);
@@ -143,7 +148,7 @@ function renderDecisions() {
     const card = S.deck(D, state.card.deck)[state.card.index];
     $("#drawn-card").style.setProperty("--card-color", state.card.deck === "mail" ? "#67e8f9" : "#e76c70");
     $("#drawn-card").classList.toggle("escape-card", card.effect.type === "escape");
-    $("#drawn-card").innerHTML = `<div class="card-icon">${card.effect.type === "escape" ? "◉" : state.card.deck === "mail" ? "✉" : "⌁"}</div><div class="card-deck">${state.card.deck === "mail" ? "ALLIANCE MAIL" : "LOCAL SPIKE"}</div>${card.kicker ? `<small class="card-kicker">${card.kicker}</small>` : ""}<h2>${card.title}</h2><p>${card.body}</p>${card.source ? `<a class="card-source" href="${card.source}" target="_blank" rel="noreferrer">The story behind the card ↗</a>` : ""}`;
+    $("#drawn-card").innerHTML = `<div class="card-icon"><img src="assets/icons/${card.effect.type === "escape" ? "security" : state.card.deck}.png" alt=""></div><div class="card-deck">${state.card.deck === "mail" ? "ALLIANCE MAIL" : "LOCAL SPIKE"}</div>${card.kicker ? `<small class="card-kicker">${card.kicker}</small>` : ""}<h2>${card.title}</h2><p>${card.body}</p>${card.source ? `<a class="card-source" href="${card.source}" target="_blank" rel="noreferrer">The story behind the card ↗</a>` : ""}`;
     $("#resolve-card").disabled = actor.isBot;
     $("#resolve-card").textContent = actor.isBot ? `${actor.name} IS READING LOCAL` : card.effect.type === "escape" ? "KEEP THIS CARD" : "ACKNOWLEDGE PING";
     showDialog("card-modal");
@@ -161,9 +166,12 @@ function renderAuction() {
 function commit(action) {
   if (!state || busy) return false;
   clearTimeout(timer);
-  const result = action();
+  const oldPositions = state.players.map(p => p.position), result = action();
   if (result === false) { toast("Contract rejected", "That action is not available."); schedule(); return false; }
-  saveGame(); render(); schedule(); return true;
+  saveGame();
+  if (state.players.some((p,id) => p.position !== oldPositions[id])) animateTransition(oldPositions,false);
+  else {render(); schedule();}
+  return true;
 }
 function passiveModalOpen() { return ["launch-modal", "property-modal", "finance-modal", "trade-modal", "intel-modal"].some((id) => $(`#${id}`).open); }
 function schedule() {
@@ -186,13 +194,19 @@ function schedule() {
 }
 async function animateAction(action) {
   if (busy || !state) return;
-  const token = generation, oldPositions = state.players.map((p) => p.position), oldDice = state.lastRoll.join();
+  const oldPositions = state.players.map((p) => p.position), oldDice = state.lastRoll.join();
   clearTimeout(timer);
   if (action() === false) return;
   saveGame();
   const rolled = oldDice !== state.lastRoll.join() || state.log.at(-1)?.text.includes("rolled");
+  await animateTransition(oldPositions,rolled);
+}
+async function animateTransition(oldPositions,rolled) {
+  const token = generation, cameraRevision = boardCamera.revision;
   busy = true; visualPositions = oldPositions; render();
+  closeDialog('card-modal'); $("#drawn-card").replaceChildren();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const following = () => token === generation && boardCamera.revision === cameraRevision && boardCamera.canFollow;
   if (rolled && !reduced) {
     $$(".die").forEach((d) => d.classList.add("rolling")); sound("roll");
     for (let n = 0; n < 7; n++) {
@@ -204,14 +218,29 @@ async function animateAction(action) {
   $$(".die").forEach((d) => d.classList.remove("rolling"));
   for (let id = 0; id < state.players.length; id++) {
     const target = state.players[id].position, distance = (target - oldPositions[id] + 40) % 40;
+    if (!distance) continue;
+    if (following()) { $('#board-viewport').scrollIntoView({behavior:'smooth',block:'nearest'}); boardCamera.focusOn(BoardPieces.pointFor(id),`${state.players[id].name} · IN WARP`,true); await wait(250); if (token !== generation) return; }
     if (!reduced && distance && distance <= 12 && !state.players[id].inJail) {
       for (let n = 0; n < distance; n++) {
-        visualPositions[id] = (visualPositions[id] + 1) % 40; render();
-        await wait(65); if (token !== generation) return;
+        visualPositions[id] = (visualPositions[id] + 1) % 40;
+        // Only move pieces here. Rebuilding the entire HUD every hop caused jank.
+        BoardPieces.sync(state,visualPositions,true,locatePlayer);
+        $$('.space').forEach(cell => { const index = Number(cell.dataset.index); $('.tokens',cell).innerHTML = BoardPieces.chips(state.players,index,visualPositions); cell.classList.toggle('active-space',index === visualPositions[state.current]); });
+        if (following()) boardCamera.focusOn(BoardPieces.pointFor(id),`${state.players[id].name} → ${D.spaces[visualPositions[id]].name}`,true);
+        await wait(190); if (token !== generation) return;
       }
     }
+    visualPositions[id] = target; BoardPieces.sync(state,visualPositions,true,locatePlayer);
+    if (following()) {boardCamera.focusOn(BoardPieces.pointFor(id),`${state.players[id].name} · ${D.spaces[target].name}`,true); await wait(650); if (token !== generation) return;}
+    else if (!reduced) {await wait(200); if (token !== generation) return;}
   }
+  if (following()) boardCamera.fit(false);
   busy = false; visualPositions = null; render(); schedule();
+}
+function locatePlayer(id) {
+  if (!state || state.players[id].bankrupt) return;
+  boardCamera.focusOn(BoardPieces.pointFor(id),`${state.players[id].name} · ${D.spaces[visualPositions?.[id] ?? state.players[id].position].name}`);
+  $('#board-viewport').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',block:'nearest'});
 }
 function inspectSpace(index) {
   if (!state || busy) return;
@@ -286,6 +315,7 @@ function sound(kind) {
   } catch { /* Optional audio. */ }
 }
 function startGame() {
+  boardCamera.reset();
   generation++; clearTimeout(timer); busy = false; visualPositions = null; paused = false;
   state = newState($("#pilot-name").value, PLAYER_SHIPS[selectedShip]);
   closeDialog("launch-modal"); saveGame(); render(); schedule();
@@ -301,11 +331,13 @@ function loadGame() {
       else Object.assign(p, { ship: ship.path, shipName: ship.name, color: "#55d8e8", isBot: false, motto: "probably human" });
     });
     parsed.log.forEach((entry) => { entry.color = /^#[0-9a-f]{6}$/i.test(entry.color) ? entry.color : "#93aab3"; });
-    state = parsed; generation++; busy = false; paused = false; visualPositions = null;
+    state = parsed; generation++; busy = false; paused = false; visualPositions = null; boardCamera.reset();
     closeDialog("launch-modal"); render(); schedule(); return true;
   } catch { toast("Save unavailable", "The browser could not read this campaign."); return false; }
 }
 function resetGame() {
+  boardCamera.reset(); $('#pawn-layer').replaceChildren(); $('#pawn-tethers').replaceChildren();
+  $$('.tokens,.upgrade-pips').forEach(el => {el.replaceChildren();delete el.dataset.count;}); window.EveModels?.sync();
   generation++; clearTimeout(timer); state = null; busy = false; visualPositions = null;
   $$('dialog[open]').forEach((d) => d.close()); $$(".die").forEach((d) => d.classList.remove("rolling"));
   try { localStorage.removeItem(SAVE_KEY); } catch { /* Storage is optional. */ }
@@ -317,6 +349,7 @@ function renderShipPicker() {
 }
 function init() {
   renderBoard(); renderShipPicker();
+  boardCamera = BoardCamera.create($('#board-viewport'),$('#board-camera'));
   $("#start-game").addEventListener("click", startGame);
   $("#resume-game").addEventListener("click", loadGame);
   $("#roll-button").addEventListener("click", () => { if (!state || state.players[B.actor(state)].isBot) return; animateAction(() => state.phase === "utility" ? S.utilityRoll(state, D, dice()) : S.roll(state, D, dice())); });
@@ -326,7 +359,7 @@ function init() {
   $("#clear-log").addEventListener("click", () => { if (state) commit(() => { state.log = []; return true; }); });
   $("#sound-toggle").addEventListener("click", (e) => { audioEnabled = !audioEnabled; e.currentTarget.textContent = audioEnabled ? "SFX ON" : "SFX OFF"; });
   $("#pause-bots").addEventListener("click", () => { paused = !paused; render(); schedule(); });
-  $("#view-toggle").addEventListener("click", (e) => { const tilted = $("#board").classList.toggle("tactical-3d"); e.currentTarget.textContent = tilted ? "FLAT VIEW" : "3D VIEW"; e.currentTarget.setAttribute("aria-pressed", String(tilted)); });
+  $("#view-toggle").addEventListener("click", (e) => { const tilted = $("#board").classList.toggle("tactical-3d"); e.currentTarget.textContent = tilted ? "FLAT VIEW" : "TILT BOARD"; e.currentTarget.setAttribute("aria-pressed", String(tilted)); });
   $("#finance-button").addEventListener("click", showFinance);
   $("#auction-finance").addEventListener("click", showFinance);
   $("#trade-button").addEventListener("click", showTrade);

@@ -19,7 +19,7 @@ test("chooses one of eight hulls and starts with four ships and classic supply",
   await page.locator('.ship-choice:has-text("Ishtar")').click();
   await page.locator("#pilot-name").fill("Definitely Human");
   await start(page);
-  await expect(page.locator("#active-pilot h3")).toHaveText("Definitely Human");
+  await expect(page.locator("#active-pilot h3")).toHaveText("1 Definitely Human");
   await expect(page.locator("#active-pilot img")).toHaveAttribute("src", "assets/ishtar.png");
   await expect(page.locator(".ship-token")).toHaveCount(4);
   await expect(page.locator("#bank-supply")).toContainText("32 ASTRAHUS");
@@ -159,7 +159,7 @@ test("research and 3D board controls work on desktop and mobile", async ({ page 
   await expect(page.locator('#intel-modal a[href="research.html#streamer"]')).toBeVisible();
   await page.locator('[data-close="intel-modal"]').click();
   if(testInfo.project.name.includes("mobile")) {
-    const sizes=await page.locator(".board-scroll").evaluate((e)=>[e.scrollWidth,e.clientWidth]); expect(sizes[0]).toBeGreaterThan(sizes[1]);
+    const sizes=await page.locator(".board-scroll").evaluate((e)=>[e.scrollWidth,e.clientWidth]); expect(sizes[0]).toBeLessThanOrEqual(sizes[1]+1);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   }
   await page.goto("/research.html#streamer"); await expect(page.locator("#streamer")).toContainText("interpretation, not a confirmed finding");
@@ -173,6 +173,7 @@ test("project-subpath hosting resolves code and images without root-relative URL
   await page.goto("/eveonline-monopoly/"); await start(page);
   await expect(page.locator(".space")).toHaveCount(40);
   await expect.poll(()=>page.locator(".ship-token img").evaluateAll((images)=>images.every((i)=>i.complete&&i.naturalWidth>0))).toBe(true);
+  await expect.poll(()=>page.locator('.ship-token .model-slot[data-model-state="ready"]').count()).toBe(4);
 });
 
 test("jukebox loads on demand, never autoplays, hides while playing, and pauses on close", async ({page}) => {

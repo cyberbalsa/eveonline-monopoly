@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="board-ui.css" />
   </head>
   <body>
     <div class="stars" aria-hidden="true"></div>
@@ -31,7 +32,12 @@
 
     <main class="game-layout">
       <section class="board-stage" aria-label="Game board">
-        <div class="board-scroll">
+        <div class="board-toolbar" aria-label="Board camera">
+          <div class="camera-tools"><button id="camera-fit" title="Fit the whole board">FIT BOARD</button><button id="camera-out" aria-label="Zoom out">−</button><output id="camera-zoom">100%</output><button id="camera-in" aria-label="Zoom in">+</button><button id="camera-follow" aria-pressed="true">FOLLOW ON</button></div>
+          <span id="camera-caption" role="status">TACTICAL OVERVIEW</span>
+        </div>
+        <div class="board-scroll" id="board-viewport" aria-label="Board viewport; zoom using the controls, then drag to pan">
+          <div class="board-camera" id="board-camera">
           <div class="board" id="board">
             <div class="board-center">
               <img src="assets/sovereignty-command.png" alt="A territorial command chamber overlooking a holographic star map" />
@@ -43,20 +49,25 @@
                 <div class="center-rule"><b></b><i>◆</i><b></b></div>
                 <small>PAY RENT · BLUE LANDLORD · DOCK DENIED</small>
               </div>
-              <div class="center-card-preview mail-card">
-                <span>ALLIANCE MAIL</span>
-                <strong>SRP DENIED</strong>
-                <small>Your lossmail is now a pinned message.</small>
+              <div class="deck-back mail-card" aria-label="Alliance Mail deck, face down">
+                <img src="assets/icons/mail.png" alt="" />
+                <strong>ALLIANCE MAIL</strong>
+                <small>COMMUNITY CHEST · FACE DOWN</small>
               </div>
-              <div class="center-card-preview local-card">
-                <span>LOCAL SPIKE</span>
-                <strong>M2 GHOST SHIP</strong>
-                <small>Your titan stayed home and died anyway.</small>
+              <div class="deck-back local-card" aria-label="Local Spike deck, face down">
+                <img src="assets/icons/local.png" alt="" />
+                <strong>LOCAL SPIKE</strong>
+                <small>CHANCE · FACE DOWN</small>
               </div>
             </div>
+            <svg id="pawn-tethers" viewBox="0 0 1024 1024" aria-hidden="true"></svg>
+            <div id="pawn-layer"></div>
+            <canvas id="station-canvas" width="1024" height="1024" aria-hidden="true"></canvas>
+            <canvas id="model-canvas" width="1024" height="1024" aria-hidden="true"></canvas>
+          </div>
           </div>
         </div>
-        <p class="scroll-hint">Drag sideways to inspect the whole lease.</p>
+        <div class="board-readout"><span id="model-status" role="status">2D RENDERS · 3D STARTING</span><span>NUMBER = PILOT · CLICK ROSTER TO LOCATE</span></div>
       </section>
 
       <aside class="command-panel">
@@ -73,7 +84,7 @@
           <div class="bank-supply" id="bank-supply"></div>
           <div class="decision-box" id="decision-box" hidden></div>
           <button class="secondary-button" id="end-turn-button" disabled>END TURN</button>
-          <div class="management-actions"><button id="finance-button">ASSETS &amp; BUILDINGS</button><button id="trade-button">TRADE</button><button id="pause-bots">PAUSE BOTS</button><button id="view-toggle" aria-pressed="false">3D VIEW</button></div>
+          <div class="management-actions"><button id="finance-button"><img src="assets/icons/assets.png" alt="">ASSETS &amp; BUILDINGS</button><button id="trade-button"><img src="assets/icons/contracts.png" alt="">TRADE</button><button id="pause-bots">PAUSE BOTS</button><button id="view-toggle" aria-pressed="false">TILT BOARD</button></div>
           <small id="save-status" role="status"></small>
         </section>
 
@@ -193,7 +204,10 @@
     <script src="engine.js"></script>
     <script src="session.js"></script>
     <script src="bots.js"></script>
+    <script src="board-camera.js"></script>
+    <script src="board-pieces.js"></script>
     <script src="game.js"></script>
+    <script defer src="vendor/board-models.min.js"></script>
     <script src="music.js"></script>
   </body>
 </html>
