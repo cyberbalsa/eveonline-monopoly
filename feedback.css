@@ -1,0 +1,46 @@
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.sfx-controls { display:flex; align-items:center; gap:5px; }
+#sound-toggle { display:inline-block; }
+#sfx-volume { width:64px; min-height:26px; margin:0; padding:0; accent-color:#72bde4; }
+.log-tools { display:flex; gap:5px; padding:8px 10px; border-bottom:1px solid #35434e; }
+.log-tools select,.log-tools input { min-width:0; padding:7px; border:1px solid #4b5d6a; border-radius:2px; color:#d6e5ed; background:#0b141c; font:11px var(--body); }
+.log-tools select { width:43%; }.log-tools input { flex:1; width:55%; }
+.event-log { height:240px; max-height:240px; overscroll-behavior:contain; background:#09121bcc; }
+.log-entry { font-size:11px; line-height:1.55; padding:7px 0 7px 10px; color:#ccd6db; overflow-wrap:anywhere; }
+.log-entry small { display:block; font:10px ui-monospace,monospace; color:var(--entry); margin-bottom:3px; }
+.log-footer { padding:7px 10px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; }
+.log-footer span { font-size:10px; color:#8eabbc; }.log-footer button { font-size:9px; padding:5px; background:#233b4d; color:#d6e5ed; border:1px solid #547084; border-radius:2px; }
+.rent-notice { position:fixed; inset:auto 18px 18px auto; margin:0; padding:16px; width:min(390px,calc(100vw - 36px)); display:flex; align-items:center; gap:12px; color:#e4edf2; background:#111e29; border:1px solid var(--rent-color); border-left:4px solid var(--rent-color); border-radius:3px; box-shadow:0 8px 28px #0009; z-index:100; animation:toast-in 180ms ease; }
+.rent-notice[hidden] { display:none; }.rent-income { --rent-color:#87d898; }.rent-expense { --rent-color:#f29583; }
+.rent-notice>img { width:38px; height:38px; object-fit:contain; }.rent-notice>div { flex:1; min-width:0; }
+.rent-notice strong,.rent-notice b,.rent-notice span { display:block; overflow-wrap:anywhere; }
+.rent-notice strong { color:var(--rent-color); font:700 13px var(--display); letter-spacing:.1em; }.rent-notice b { font:700 28px var(--display); margin:4px 0; }
+.rent-notice span { font-size:12px; line-height:1.6; }.rent-notice button { align-self:flex-start; background:#273641; border:1px solid #687b87; color:#eee; min-width:30px; min-height:30px; font-size:20px; }
+.card-pilot { display:flex; align-items:center; gap:10px; padding:12px 20px; background:#111d27; border-bottom:1px solid #5a6c7c; text-align:left; }
+.card-pilot img { width:55px; height:55px; object-fit:contain; }.card-pilot strong { color:var(--pilot); display:block; font:700 22px var(--display); }.card-pilot small { font-size:10px; color:#c4d1dc; letter-spacing:.06em; }
+.card-dismiss-note { margin:0 15px 10px; color:#a6bac6; font-size:11px; text-align:center; }
+.trade-offer-modal { width:min(650px,calc(100vw - 32px)); padding:24px; }
+.trade-offer-modal h2 { margin:6px 0 16px; font:700 30px var(--display); overflow-wrap:anywhere; }
+.trade-offer-modal .card-pilot { padding:10px 12px; }
+.offer-terms { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+.offer-side { min-width:0; padding:14px; background:#0c1720; border:1px solid #476174; border-top:3px solid var(--offer-color); }
+.offer-receive { --offer-color:#83d797; }.offer-give { --offer-color:#edb678; }
+.offer-side h3 { margin:0 0 8px; font:700 15px var(--display); letter-spacing:.07em; color:var(--offer-color); }
+.offer-cash { font:700 28px var(--display); color:#edf4f8; }.offer-side ul { list-style:none; padding:0; margin:8px 0 0; }
+.offer-side li { position:relative; padding:9px 0; border-top:1px solid #34434e; font-size:12px; overflow-wrap:anywhere; }
+.offer-side small { display:block; color:#a7bac5; font-size:10px; line-height:1.6; margin-top:4px; }.offer-empty { color:#8eabbc; }
+.offer-deed-color { display:inline-block; width:6px; height:12px; margin-right:6px; vertical-align:middle; }
+#offer-note { color:#a7bac5; font-size:12px; line-height:1.6; }
+.offer-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }.offer-actions button { min-width:0; width:100%; margin:0; }
+#accept-offer { --button-top:#426e47; --button-bottom:#203c26; }#decline-offer { --button-top:#744b40; --button-bottom:#39251f; }
+@media(max-width:480px) { .trade-offer-modal { padding:16px; }.offer-terms { gap:8px; }.offer-side { padding:9px; }.offer-cash { font-size:24px; }.trade-offer-modal h2 { font-size:26px; } }
+.trade-standing { margin-top:18px; padding:14px; border:1px solid #526674; background:#0b151e; --standing-color:#acbcc7; }
+.trade-standing header { display:flex; flex-wrap:wrap; justify-content:space-between; gap:7px; font:700 12px var(--display); }
+.trade-standing header>span { color:#a8bdc9; }.trade-standing output { color:var(--standing-color); }
+#standing-meter { height:13px; margin:18px 7px 8px; position:relative; background:linear-gradient(to right,#d96368 0 20%,#d58a50 20% 40%,#8b9da8 40% 60%,#63bdde 60% 80%,#527ee1 80%); border:1px solid #b5c4cb; }
+#standing-meter i { position:absolute; top:-5px; bottom:-5px; left:clamp(0px,var(--standing-position,50%),100%); width:4px; transform:translateX(-50%); border:1px solid #080e13; background:#fff; box-shadow:0 0 0 1px #fff8; }
+.standing-ticks { display:flex; justify-content:space-between; gap:6px; font-size:10px; color:#9fb2bf; text-align:center; }
+#standing-verdict { display:block; margin:14px 0 7px; color:var(--standing-color); font:700 15px var(--display); }
+.trade-standing>small { font-size:10px; color:#8fa4b2; }
+@media(max-width:600px) { #sfx-volume { width:48px; }.rent-notice { inset:auto 10px 10px auto; width:calc(100vw - 20px); padding:12px; }.card-pilot { padding:8px 16px; }.card-pilot img { width:38px; height:38px; } }
+@media(prefers-reduced-motion:reduce) { .rent-notice { animation:none; } }

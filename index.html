@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="board-ui.css" />
+    <link rel="stylesheet" href="feedback.css" />
   </head>
   <body>
     <div class="stars" aria-hidden="true"></div>
@@ -23,7 +24,7 @@
       </a>
       <div class="top-actions">
         <span class="status-pill"><i></i> TRANQUILITY: QUESTIONABLE</span>
-        <button class="icon-button" id="sound-toggle" aria-label="Toggle game sound effects" title="Game effects only; music volume is in Webamp">SFX ON</button>
+        <div class="sfx-controls"><button class="icon-button" id="sound-toggle" aria-pressed="true" aria-label="Toggle game sound effects" title="Game effects only; music volume is in Webamp">SFX ON</button><label for="sfx-volume" class="sr-only">Sound effects volume</label><input id="sfx-volume" type="range" min="0" max="100" value="35" title="EVE sound effects volume"></div>
         <button class="icon-button" id="music-toggle" aria-label="Show Webamp jukebox" aria-expanded="false" aria-controls="music-panel">JUKEBOX</button>
         <button class="icon-button" data-open="intel-modal">INTEL</button>
         <button class="icon-button danger" id="new-game-button">NEW CAMPAIGN</button>
@@ -94,13 +95,19 @@
         </section>
 
         <section class="log-card">
-          <div class="section-heading"><span>INTEL FEED</span><button id="clear-log">CLEAR</button></div>
-          <div class="event-log" id="event-log" aria-live="polite"></div>
+          <div class="section-heading"><span>LOCAL · ACTION LOG</span><button id="log-export" title="Download the complete campaign history">EXPORT</button></div>
+          <div class="log-tools"><label class="sr-only" for="log-filter">Filter actions by pilot</label><select id="log-filter"><option value="all">All pilots</option><option value="human">You / your wallet</option><option value="bots">Bots</option></select><label class="sr-only" for="log-search">Search action log</label><input id="log-search" type="search" placeholder="Search Local…" autocomplete="off"></div>
+          <div class="event-log" id="event-log" role="log" aria-label="Campaign actions, oldest first" aria-live="off" tabindex="0"></div>
+          <div class="log-footer"><span id="log-count">No campaign</span><div><button id="log-earlier">EARLIER</button><button id="log-newer">NEWER</button><button id="log-latest">LATEST</button></div></div>
+          <span id="log-live" class="sr-only" role="status"></span>
         </section>
       </aside>
     </main>
 
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+    <aside class="rent-notice" id="rent-notice" popover="manual" role="status" aria-live="polite" aria-atomic="true" hidden>
+      <img src="assets/icons/wallet.png" alt=""><div><strong id="rent-title"></strong><b id="rent-amount"></b><span id="rent-route"></span><span id="rent-property"></span></div><button id="rent-dismiss" aria-label="Dismiss rent notification">×</button>
+    </aside>
 
     <dialog class="modal launch-modal" id="launch-modal">
       <div class="modal-art">
@@ -123,8 +130,10 @@
     </dialog>
 
     <dialog class="modal card-modal" id="card-modal">
+      <div id="card-pilot" class="card-pilot"></div>
       <div class="drawn-card" id="drawn-card"></div>
-      <button class="primary-button" id="resolve-card">ACKNOWLEDGE PING</button>
+      <p class="card-dismiss-note">Dismiss to apply this pilot’s card. Play is paused.</p>
+      <button class="primary-button" id="resolve-card" autofocus>DISMISS CARD</button>
     </dialog>
 
     <dialog class="modal property-modal" id="property-modal">
@@ -152,8 +161,23 @@
       <button class="modal-close" data-close="trade-modal" aria-label="Close trade">×</button>
       <div class="eyebrow">READ THE CONTRACT</div><h2 id="trade-title">Diplomacy, with invoices</h2>
       <label for="trade-partner">Counterparty</label><select id="trade-partner"></select>
-      <div id="trade-terms"></div><p id="trade-feedback" role="status"></p>
+      <div id="trade-terms"></div>
+      <section class="trade-standing" id="trade-standing" aria-label="Bot appraisal of the proposed contract">
+        <header><span>DIPLOMATIC STANDING · THIS CONTRACT</span><output id="standing-label">NO APPRAISAL</output></header>
+        <div id="standing-meter" role="meter" aria-label="Contract standing" aria-valuemin="-10" aria-valuemax="10" aria-valuenow="0"><i aria-hidden="true"></i></div>
+        <div class="standing-ticks" aria-hidden="true"><span>−10<br>Terrible</span><span>−5<br>Bad</span><span>0<br>Neutral</span><span>+5<br>Good</span><span>+10<br>Excellent</span></div>
+        <strong id="standing-verdict" role="status"></strong><small>Initial reception only. Send the contract for a final answer.</small>
+      </section>
+      <p id="trade-feedback" role="status"></p>
       <button class="primary-button" id="submit-trade">PROPOSE CONTRACT</button>
+    </dialog>
+
+    <dialog class="modal trade-offer-modal" id="trade-offer-modal" aria-labelledby="offer-title" aria-describedby="offer-note">
+      <div class="eyebrow">INCOMING SCC CONTRACT</div><h2 id="offer-title">Trade offer</h2>
+      <div id="offer-pilot" class="card-pilot"></div>
+      <div id="offer-terms" class="offer-terms"></div>
+      <p id="offer-note">Play is paused until you accept or decline. Accepting transfers the listed assets; received mortgages require a Bank payment.</p>
+      <div class="offer-actions"><button class="primary-button" id="accept-offer">ACCEPT CONTRACT</button><button class="secondary-button" id="decline-offer" autofocus>DECLINE</button></div>
     </dialog>
 
     <dialog class="modal intel-modal" id="intel-modal">
@@ -190,7 +214,7 @@
           </ul>
         </div>
       </div>
-      <p><a href="research.html#cards" target="_blank" rel="noreferrer">All 32 cards and their references ↗</a><br><a href="research.html#streamer" target="_blank" rel="noreferrer">Streamer Privilege and the Loru source notes ↗</a></p>
+      <p><a href="research.html#cards" target="_blank" rel="noreferrer">All 32 cards and their references ↗</a><br><a href="research.html#streamer" target="_blank" rel="noreferrer">Streamer Privilege and the Loru source notes ↗</a><br><a href="research.html#sfx" target="_blank" rel="noreferrer">EVE sound effect credits ↗</a></p>
       <div class="legal-note">An unofficial, non-commercial fan parody. EVE Online art belongs to its respective owners; Monopoly belongs to Hasbro. No endorsement is implied. The command-room backdrop was generated for this project. <a href="research.html#art" target="_blank" rel="noreferrer">Art credits</a>.</div>
     </dialog>
 
@@ -206,6 +230,10 @@
     <script src="bots.js"></script>
     <script src="board-camera.js"></script>
     <script src="board-pieces.js"></script>
+    <script src="sound-effects.js"></script>
+    <script src="activity-log.js"></script>
+    <script src="game-feedback.js"></script>
+    <script src="trade-standing.js"></script>
     <script src="game.js"></script>
     <script defer src="vendor/board-models.min.js"></script>
     <script src="music.js"></script>

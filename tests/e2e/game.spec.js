@@ -116,7 +116,7 @@ test("trade interface rejects a cheap monopoly and completes an acceptable contr
   await page.locator("#trade-button").click();
   await page.locator('[name="take-property"][value="19"]').check();
   await page.locator('[name="give-cash"]').fill("200"); await page.locator("#submit-trade").click();
-  await expect(page.locator("#trade-feedback")).toContainText("Pay for it");
+  await expect(page.locator("#trade-feedback")).toContainText("Contract declined");
   await page.locator('[name="give-cash"]').fill("2500"); await page.locator("#submit-trade").click();
   await expect(page.locator("#trade-modal")).not.toBeVisible();
   expect(await page.evaluate(() => state.players[0].properties)).toContain(19);

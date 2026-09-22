@@ -59,7 +59,7 @@
         const trade = this.proposal(state, data, id);
         if (trade) {
           if (state.players[trade.to].isBot) S.trade(state, data, trade);
-          else { state.offer = { trade, returnPhase: state.phase }; state.phase = "offer"; }
+          else { S.log(state, `${p.name} offered ${S.describeTradeSide(data, trade.give)} to ${state.players[trade.to].name} for ${S.describeTradeSide(data, trade.take)}.`, p.color, { kind: "offer", player: id, to: trade.to }); state.offer = { trade, returnPhase: state.phase }; state.phase = "offer"; }
           return true;
         }
       }
@@ -67,7 +67,7 @@
       const mortgages = p.properties.filter((index) => p.mortgaged[index]).sort((a, b) => (E.ownsGroup(p, data.spaces[b].group, data) ? 1 : 0) - (E.ownsGroup(p, data.spaces[a].group, data) ? 1 : 0));
       for (const index of mortgages) {
         if (p.cash - E.unmortgageCost(data, index) > Math.max(250, reserve)) {
-          E.unmortgage(data, p, index); S.log(state, `${p.name} redeemed ${data.spaces[index].name}.`, p.color); return true;
+          E.unmortgage(data, p, index, state); return true;
         }
       }
       const index = E.botUpgradeChoice(state, data, p, 0);

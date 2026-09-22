@@ -15,8 +15,8 @@ const PLAYER_SHIPS = [
   { name: "Dominix", path: "assets/dominix.png", note: "space potato" }
 ];
 let state = null, selectedShip = 0, timer = null, generation = 0, busy = false, paused = false;
-let audioEnabled = true, audioContext = null, visualPositions = null, inspected = null;
-let boardCamera = null;
+let visualPositions = null, inspected = null;
+let boardCamera = null, soundEffects = null, activityLog = null, feedback = null;
 const h = (text) => String(text).replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" })[c]);
 const money = (value) => `${Number(value.toFixed(2)).toLocaleString()}M`;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -77,7 +77,7 @@ function render() {
     $(".tokens", cell).innerHTML = BoardPieces.chips(state.players,index,visualPositions);
   });
   BoardPieces.sync(state,visualPositions,busy,locatePlayer);
-  $("#event-log").innerHTML = state.log.slice(-40).reverse().map((entry) => `<p class="log-entry" style="--entry:${entry.color}">${h(entry.text)}</p>`).join("");
+  activityLog.render();
   const utility = state.phase === "utility";
   $("#roll-button").disabled = busy || state.gameOver || (utility ? actor.isBot : current.isBot || current.bankrupt || state.phase !== "roll");
   $("#roll-button").innerHTML = utility ? `<span>ROLL UTILITY RENT</span><small>${state.utility.multiplier} × fresh dice · no movement</small>` : `<span>${current.inJail ? "ROLL DOUBLES" : "ROLL DICE"}</span><small>${current.inJail ? "Third miss costs 50M" : "Undock and hope"}</small>`;
@@ -89,6 +89,7 @@ function render() {
     setDie($("#die-one"), state.lastRoll[0]);
     setDie($("#die-two"), state.lastRoll[1]);
     renderDecisions();
+    feedback.present(state);
   }
 }
 function showDialog(id) { const d = $(`#${id}`); if (!d.open) d.showModal(); }
@@ -103,6 +104,7 @@ function renderDecisions() {
   $("#decision-box").hidden = true;
   if (state.phase !== "card") { closeDialog("card-modal"); $("#drawn-card").replaceChildren(); }
   if (state.phase !== "auction") closeDialog("auction-modal");
+  if (state.phase !== "offer") { closeDialog("trade-offer-modal"); $("#offer-terms").replaceChildren(); }
   if (state.phase === "over") {
     const winner = state.players.find((p) => !p.bankrupt);
     decision(`<strong>${h(winner.name)}</strong> wins with ${money(winner.cash)} and ${winner.properties.length} leases.`, [{ id: "play-again", label: "NEW CAMPAIGN", run: resetGame }]);
@@ -138,19 +140,19 @@ function renderDecisions() {
       { id: "pass-building", label: "LET THEM BUY", run: () => commit(() => S.buildingResponse(state,D,false)) }
     ]);
   } else if (state.phase === "offer") {
-    const trade = state.offer.trade;
-    decision(`<strong>${h(state.players[trade.from].name)}</strong> offers ${describeSide(trade.give)} for your ${describeSide(trade.take)}.`, [
-      { id: "accept-offer", label: "ACCEPT CONTRACT", run: () => acceptOffer(true) },
-      { id: "decline-offer", label: "DECLINE", run: () => acceptOffer(false) }
-    ]);
+    renderBotOffer();
   } else if (state.players[0].bankrupt && !state.gameOver) decision("Your rental empire is gone. The bots will finish the campaign. You can watch or start a new one.");
   if (state.phase === "card") {
     const card = S.deck(D, state.card.deck)[state.card.index];
     $("#drawn-card").style.setProperty("--card-color", state.card.deck === "mail" ? "#67e8f9" : "#e76c70");
     $("#drawn-card").classList.toggle("escape-card", card.effect.type === "escape");
     $("#drawn-card").innerHTML = `<div class="card-icon"><img src="assets/icons/${card.effect.type === "escape" ? "security" : state.card.deck}.png" alt=""></div><div class="card-deck">${state.card.deck === "mail" ? "ALLIANCE MAIL" : "LOCAL SPIKE"}</div>${card.kicker ? `<small class="card-kicker">${card.kicker}</small>` : ""}<h2>${card.title}</h2><p>${card.body}</p>${card.source ? `<a class="card-source" href="${card.source}" target="_blank" rel="noreferrer">The story behind the card ↗</a>` : ""}`;
-    $("#resolve-card").disabled = actor.isBot;
-    $("#resolve-card").textContent = actor.isBot ? `${actor.name} IS READING LOCAL` : card.effect.type === "escape" ? "KEEP THIS CARD" : "ACKNOWLEDGE PING";
+    const cardPilot = state.players[state.card.player];
+    $("#card-pilot").style.setProperty("--pilot", cardPilot.color);
+    $("#card-pilot").innerHTML = `<img src="${cardPilot.ship}" alt="${h(cardPilot.shipName)}"><div><small>PILOT ${state.card.player + 1} · ${cardPilot.isBot ? "BOT" : "HUMAN · YOU"} · ${h(cardPilot.shipName)}</small><strong>${h(cardPilot.name)}</strong></div>`;
+    $("#card-modal").setAttribute("aria-label", `${cardPilot.name} drew ${card.title}`);
+    $("#resolve-card").disabled = false;
+    $("#resolve-card").textContent = card.effect.type === "escape" ? "KEEP CARD & DISMISS" : "DISMISS CARD";
     showDialog("card-modal");
   }
   if (state.phase === "auction") renderAuction();
@@ -176,10 +178,10 @@ function commit(action) {
 function passiveModalOpen() { return ["launch-modal", "property-modal", "finance-modal", "trade-modal", "intel-modal"].some((id) => $(`#${id}`).open); }
 function schedule() {
   clearTimeout(timer);
-  if (!state || busy || paused || state.gameOver || ["offer", "buildingOffer"].includes(state.phase) || passiveModalOpen()) return;
+  if (!state || busy || paused || state.gameOver || ["card", "offer", "buildingOffer"].includes(state.phase) || passiveModalOpen()) return;
   const token = generation;
   timer = setTimeout(() => {
-    if (token !== generation || !state || busy || paused || passiveModalOpen()) return;
+    if (token !== generation || !state || busy || paused || ["card", "offer", "buildingOffer"].includes(state.phase) || passiveModalOpen()) return;
     if (state.phase === "auction") {
       const changed = B.auctionRound(state, D);
       if (changed) { saveGame(); render(); schedule(); return; }
@@ -194,11 +196,11 @@ function schedule() {
 }
 async function animateAction(action) {
   if (busy || !state) return;
-  const oldPositions = state.players.map((p) => p.position), oldDice = state.lastRoll.join();
+  const oldPositions = state.players.map((p) => p.position), oldLogLength = state.log.length;
   clearTimeout(timer);
   if (action() === false) return;
   saveGame();
-  const rolled = oldDice !== state.lastRoll.join() || state.log.at(-1)?.text.includes("rolled");
+  const rolled = state.log.slice(oldLogLength).some((entry) => entry.kind === "roll");
   await animateTransition(oldPositions,rolled);
 }
 async function animateTransition(oldPositions,rolled) {
@@ -207,8 +209,9 @@ async function animateTransition(oldPositions,rolled) {
   closeDialog('card-modal'); $("#drawn-card").replaceChildren();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const following = () => token === generation && boardCamera.revision === cameraRevision && boardCamera.canFollow;
+  if (rolled) void soundEffects.play("roll");
   if (rolled && !reduced) {
-    $$(".die").forEach((d) => d.classList.add("rolling")); sound("roll");
+    $$(".die").forEach((d) => d.classList.add("rolling"));
     for (let n = 0; n < 7; n++) {
       setDie($("#die-one"), 1 + Math.floor(Math.random() * 6));
       setDie($("#die-two"), 1 + Math.floor(Math.random() * 6));
@@ -219,6 +222,7 @@ async function animateTransition(oldPositions,rolled) {
   for (let id = 0; id < state.players.length; id++) {
     const target = state.players[id].position, distance = (target - oldPositions[id] + 40) % 40;
     if (!distance) continue;
+    void soundEffects.play("move");
     if (following()) { $('#board-viewport').scrollIntoView({behavior:'smooth',block:'nearest'}); boardCamera.focusOn(BoardPieces.pointFor(id),`${state.players[id].name} · IN WARP`,true); await wait(250); if (token !== generation) return; }
     if (!reduced && distance && distance <= 12 && !state.players[id].inJail) {
       for (let n = 0; n < distance; n++) {
@@ -257,10 +261,9 @@ function inspectSpace(index) {
   const canBuild = yours && ["roll", "end", "purchase"].includes(state.phase) && E.canUpgrade(state, D, p, index);
   $("#property-detail").innerHTML = `<div class="property-sheet" style="--sheet-color:${color}"><div class="property-banner"><div class="eyebrow">${space.group ? D.groups[space.group].name : space.type}</div><h2>${space.name}</h2></div><p class="property-flavor">${space.flavor || space.text}</p><div class="property-stats"><div><span>LEASE</span><b>${money(space.price)}</b></div><div><span>OWNER</span><b>${owner ? h(owner.name) : "BANK"}</b></div><div><span>STATUS</span><b>${owner?.mortgaged[index] ? "MORTGAGED" : space.group ? labels[level] : "ACTIVE"}</b></div></div><div class="rent-table">${rent}</div>${space.group ? `<div class="citadel-track">${[1, 2, 3, 4, 5].map((n) => `<div class="${level === n ? "built" : ""}"><img src="assets/${n === 5 ? "keepstar" : "astrahus"}.png" alt="${n === 5 ? "Keepstar" : "Astrahus"}"><span>${labels[n]}</span></div>`).join("")}</div>` : ""}${yours ? `<div class="property-actions"><button id="upgrade-property" ${canBuild ? "" : "disabled"}>BUILD ${space.buildCost ? money(space.buildCost) : ""}</button><button id="sell-building" ${E.canSellBuilding(state, D, p, index) ? "" : "disabled"}>SELL ONE BUILDING</button><button id="sell-group" ${space.group && E.groupSpaces(space.group, D).some((s) => p.upgrades[s.index]) ? "" : "disabled"}>SELL ALL IN COLOR SET</button><button id="mortgage-property" ${E.canMortgage(state, D, p, index) ? "" : "disabled"}>MORTGAGE · +${money(space.price / 2)}</button><button id="unmortgage-property" ${p.mortgaged[index] && p.cash - committedBid >= E.unmortgageCost(D, index) ? "" : "disabled"}>REDEEM · ${money(E.unmortgageCost(D, index))}</button></div>` : ""}<p class="property-note">Build and sell evenly. Mortgaged leases collect no rent. Sell all buildings in a color set before mortgaging or trading it.</p></div>`;
   if (yours) {
-    const actions = { "upgrade-property": () => S.build(state, D, 0, index), "sell-building": () => E.sellBuilding(state, D, p, index), "sell-group": () => E.sellGroup(state, D, p, space.group), "mortgage-property": () => E.mortgage(state, D, p, index), "unmortgage-property": () => E.unmortgage(D, p, index) };
+    const actions = { "upgrade-property": () => S.build(state, D, 0, index), "sell-building": () => E.sellBuilding(state, D, p, index), "sell-group": () => E.sellGroup(state, D, p, space.group), "mortgage-property": () => E.mortgage(state, D, p, index), "unmortgage-property": () => E.unmortgage(D, p, index, state) };
     Object.entries(actions).forEach(([id, run]) => $(`#${id}`).addEventListener("click", () => {
       if (!commit(run)) return;
-      sound("cash");
       if (state.phase === "auction") { closeDialog("property-modal"); closeDialog("finance-modal"); renderAuction(); schedule(); }
       else inspectSpace(index);
       if ($("#finance-modal").open) renderFinance();
@@ -274,7 +277,17 @@ function renderFinance() {
   $$('[data-asset]').forEach((button) => button.addEventListener("click", () => inspectSpace(Number(button.dataset.asset))));
 }
 function showFinance() { if (!state || busy) return; clearTimeout(timer); renderFinance(); showDialog("finance-modal"); }
-function describeSide(side) { return [...side.properties.map((i) => D.spaces[i].name), ...side.cards.map((d) => S.deck(D, d).find((c) => c.effect.type === "escape").title), ...(side.cash ? [money(side.cash)] : [])].map(h).join(", ") || "nothing"; }
+function renderBotOffer() {
+  const {trade} = state.offer, proposer = state.players[trade.from];
+  $("#offer-title").textContent = `${proposer.name} offers a contract`;
+  $("#offer-pilot").style.setProperty("--pilot",proposer.color);
+  $("#offer-pilot").innerHTML = `<img src="${proposer.ship}" alt="${h(proposer.shipName)}"><div><small>PILOT ${trade.from + 1} · BOT · ${h(proposer.shipName)}</small><strong>${h(proposer.name)}</strong></div>`;
+  function terms(side, owner, receive) {
+    return `<section class="offer-side ${receive ? 'offer-receive' : 'offer-give'}"><h3>${receive ? 'YOU RECEIVE' : 'YOU GIVE'}</h3><strong class="offer-cash">${money(side.cash)} ISK</strong><ul>${side.properties.map(index=>`<li><span class="offer-deed-color" style="background:${D.groups[D.spaces[index].group]?.color || '#8b82e8'}"></span><b>${h(D.spaces[index].name)}</b>${owner.mortgaged[index] ? `<small>MORTGAGED · recipient owes ${money(D.spaces[index].price / 20)} interest or ${money(E.unmortgageCost(D,index))} to redeem now.</small>` : '<small>Unmortgaged lease</small>'}</li>`).join('')}${side.cards.map(deck=>`<li><b>${h(S.deck(D,deck).find(card=>card.effect.type==='escape').title)}</b><small>Held escape card</small></li>`).join('')}${!side.properties.length && !side.cards.length ? '<li class="offer-empty">No leases or cards</li>' : ''}</ul></section>`;
+  }
+  $("#offer-terms").innerHTML = terms(trade.give,proposer,true) + terms(trade.take,state.players[trade.to],false);
+  showDialog("trade-offer-modal");
+}
 function tradeSide(p, name) {
   return `<fieldset><legend>${name === "give" ? "YOU GIVE" : "YOU RECEIVE"}</legend><label>Cash (M ISK)<input type="number" min="0" max="${p.cash}" step="0.5" value="0" name="${name}-cash"></label>${p.properties.filter((i) => E.tradeable(D, p, i)).map((i) => `<label class="trade-item"><input type="checkbox" name="${name}-property" value="${i}">${D.spaces[i].name}${p.mortgaged[i] ? " (mortgaged)" : ""}</label>`).join("")}${p.jailCardDecks.map((d) => `<label class="trade-item"><input type="checkbox" name="${name}-card" value="${d}">${S.deck(D, d).find((c) => c.effect.type === "escape").title}</label>`).join("")}</fieldset>`;
 }
@@ -282,6 +295,7 @@ function renderTrade() {
   const id = Number($("#trade-partner").value);
   $("#trade-terms").innerHTML = tradeSide(state.players[0], "give") + tradeSide(state.players[id], "take");
   $("#trade-feedback").textContent = "No loans or rent immunity. Mortgaged leases carry an immediate Bank charge for the recipient.";
+  updateTradeStanding();
 }
 function showTrade() {
   if (!state || busy || !["roll", "end", "purchase", "debt"].includes(state.phase)) return;
@@ -289,35 +303,44 @@ function showTrade() {
   $("#trade-partner").innerHTML = state.players.map((p, i) => i && !p.bankrupt ? `<option value="${i}">${h(p.name)}</option>` : "").join("");
   renderTrade(); showDialog("trade-modal");
 }
-function submitTrade() {
+function readTrade() {
   const side = (name) => ({ cash: Number($(`[name="${name}-cash"]`).value), properties: $$(`[name="${name}-property"]:checked`).map((x) => Number(x.value)), cards: $$(`[name="${name}-card"]:checked`).map((x) => x.value) });
-  const trade = { from: 0, to: Number($("#trade-partner").value), give: side("give"), take: side("take") };
+  return { from: 0, to: Number($("#trade-partner").value), give: side("give"), take: side("take") };
+}
+function updateTradeStanding() {
+  if (!state || !$("#trade-terms input")) return;
+  const trade=readTrade(), result=TradeStanding.appraisal(E.evaluateTrade(state,D,trade,trade.to));
+  $("#trade-standing").style.setProperty('--standing-color',result.color);
+  $("#standing-label").textContent=result.label;
+  $("#standing-meter").hidden=!result.valid;
+  $("#standing-meter").style.setProperty('--standing-position',`${(result.score+10)*5}%`);
+  $("#standing-meter").setAttribute('aria-valuenow',String(result.score));
+  $("#standing-meter").setAttribute('aria-valuetext',result.label);
+  $("#standing-verdict").textContent=result.reaction;
+  $("#submit-trade").disabled=!result.valid;
+}
+function submitTrade() {
+  const trade = readTrade();
   const verdict = E.evaluateTrade(state, D, trade, trade.to);
-  $("#trade-feedback").textContent = verdict.reason;
-  if (verdict.accept && commit(() => S.trade(state, D, trade))) { closeDialog("trade-modal"); schedule(); toast("Contract accepted", verdict.reason); }
+  S.log(state, `${state.players[0].name} offered ${S.describeTradeSide(D, trade.give)} to ${state.players[trade.to].name} for ${S.describeTradeSide(D, trade.take)}.`, state.players[0].color, { kind: "offer", player: 0, to: trade.to });
+  if (!verdict.accept) { S.log(state, `${state.players[trade.to].name} declined the contract.`, state.players[trade.to].color, { kind: "offer", player: trade.to, to: 0 }); saveGame(); activityLog.render(); }
+  $("#trade-feedback").textContent = verdict.accept ? "Contract accepted. o7" : "Docking denied. Contract declined.";
+  if (verdict.accept && commit(() => S.trade(state, D, trade))) { closeDialog("trade-modal"); schedule(); toast("Contract accepted", "o7. The assets have changed hands."); }
 }
 function acceptOffer(accept) {
-  commit(() => { const offer = state.offer; delete state.offer; state.phase = offer.returnPhase; return accept ? S.trade(state, D, offer.trade) : true; });
+  if (!state || state.phase !== "offer" || !state.offer) return;
+  commit(() => { const offer = state.offer; if (accept && !S.validOffer(state,D)) return false; delete state.offer; state.phase = offer.returnPhase; if (!accept) S.log(state, `${state.players[0].name} declined ${state.players[offer.trade.from].name}'s contract.`, state.players[0].color, { kind: "offer", player: 0, to: offer.trade.from }); return accept ? S.trade(state, D, offer.trade) : true; });
 }
 function toast(title, body) {
   const item = document.createElement("div"); item.className = "toast";
   item.innerHTML = `<strong>${h(title)}</strong>${h(body)}`; $("#toast-stack").appendChild(item);
   setTimeout(() => item.remove(), 3900);
 }
-function sound(kind) {
-  if (!audioEnabled) return;
-  try {
-    audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator(), gain = audioContext.createGain(), now = audioContext.currentTime;
-    oscillator.frequency.setValueAtTime({ roll: 110, cash: 420, alert: 74 }[kind] || 185, now);
-    oscillator.type = "sine"; gain.gain.setValueAtTime(0.035, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
-    oscillator.connect(gain).connect(audioContext.destination); oscillator.start(now); oscillator.stop(now + 0.14);
-  } catch { /* Optional audio. */ }
-}
 function startGame() {
   boardCamera.reset();
   generation++; clearTimeout(timer); busy = false; visualPositions = null; paused = false;
   state = newState($("#pilot-name").value, PLAYER_SHIPS[selectedShip]);
+  feedback.reset(state); void soundEffects.play("card");
   closeDialog("launch-modal"); saveGame(); render(); schedule();
 }
 function loadGame() {
@@ -332,6 +355,7 @@ function loadGame() {
     });
     parsed.log.forEach((entry) => { entry.color = /^#[0-9a-f]{6}$/i.test(entry.color) ? entry.color : "#93aab3"; });
     state = parsed; generation++; busy = false; paused = false; visualPositions = null; boardCamera.reset();
+    feedback.reset(state);
     closeDialog("launch-modal"); render(); schedule(); return true;
   } catch { toast("Save unavailable", "The browser could not read this campaign."); return false; }
 }
@@ -339,6 +363,7 @@ function resetGame() {
   boardCamera.reset(); $('#pawn-layer').replaceChildren(); $('#pawn-tethers').replaceChildren();
   $$('.tokens,.upgrade-pips').forEach(el => {el.replaceChildren();delete el.dataset.count;}); window.EveModels?.sync();
   generation++; clearTimeout(timer); state = null; busy = false; visualPositions = null;
+  feedback.reset(null);
   $$('dialog[open]').forEach((d) => d.close()); $$(".die").forEach((d) => d.classList.remove("rolling"));
   try { localStorage.removeItem(SAVE_KEY); } catch { /* Storage is optional. */ }
   $("#resume-game").hidden = true; showDialog("launch-modal");
@@ -350,21 +375,23 @@ function renderShipPicker() {
 function init() {
   renderBoard(); renderShipPicker();
   boardCamera = BoardCamera.create($('#board-viewport'),$('#board-camera'));
+  soundEffects = EveSound.create(); activityLog = ActivityLog.create(() => state); feedback = GameFeedback.create(soundEffects,D);
   $("#start-game").addEventListener("click", startGame);
   $("#resume-game").addEventListener("click", loadGame);
   $("#roll-button").addEventListener("click", () => { if (!state || state.players[B.actor(state)].isBot) return; animateAction(() => state.phase === "utility" ? S.utilityRoll(state, D, dice()) : S.roll(state, D, dice())); });
   $("#end-turn-button").addEventListener("click", () => { if (state && !state.players[state.current].isBot) commit(() => S.end(state, D)); });
   $("#resolve-card").addEventListener("click", () => commit(() => S.acknowledge(state, D)));
   $("#new-game-button").addEventListener("click", () => { if (!state || confirm("End this campaign and clear the saved lease?")) resetGame(); });
-  $("#clear-log").addEventListener("click", () => { if (state) commit(() => { state.log = []; return true; }); });
-  $("#sound-toggle").addEventListener("click", (e) => { audioEnabled = !audioEnabled; e.currentTarget.textContent = audioEnabled ? "SFX ON" : "SFX OFF"; });
   $("#pause-bots").addEventListener("click", () => { paused = !paused; render(); schedule(); });
   $("#view-toggle").addEventListener("click", (e) => { const tilted = $("#board").classList.toggle("tactical-3d"); e.currentTarget.textContent = tilted ? "FLAT VIEW" : "TILT BOARD"; e.currentTarget.setAttribute("aria-pressed", String(tilted)); });
   $("#finance-button").addEventListener("click", showFinance);
   $("#auction-finance").addEventListener("click", showFinance);
   $("#trade-button").addEventListener("click", showTrade);
   $("#trade-partner").addEventListener("change", renderTrade);
+  $("#trade-terms").addEventListener("input", () => { updateTradeStanding(); $("#trade-feedback").textContent = "Preview updated. No assets move until the contract is accepted."; });
   $("#submit-trade").addEventListener("click", submitTrade);
+  $("#accept-offer").addEventListener("click", () => acceptOffer(true));
+  $("#decline-offer").addEventListener("click", () => acceptOffer(false));
   $("#bid-form").addEventListener("submit", (event) => {
     event.preventDefault();
     commit(() => {
@@ -373,12 +400,12 @@ function init() {
       return ok;
     });
   });
-  $("#auction-pass").addEventListener("click", () => commit(() => { for (let n = 0; n < 5 && B.auctionRound(state, D); n++); return S.finishAuction(state, D); }));
+  $("#auction-pass").addEventListener("click", () => commit(() => { S.log(state, `${state.players[0].name} passed on further auction bids.`, state.players[0].color, { kind: "bid", player: 0 }); for (let n = 0; n < 5 && B.auctionRound(state, D); n++); return S.finishAuction(state, D); }));
   $$('[data-open]').forEach((button) => button.addEventListener("click", () => { clearTimeout(timer); showDialog(button.dataset.open); }));
   $$('[data-close]').forEach((button) => button.addEventListener("click", () => closeDialog(button.dataset.close)));
   $$('dialog').forEach((dialog) => {
     dialog.addEventListener("close", schedule);
-    if (["launch-modal", "card-modal", "auction-modal"].includes(dialog.id)) dialog.addEventListener("cancel", (event) => event.preventDefault());
+    if (["launch-modal", "card-modal", "auction-modal", "trade-offer-modal"].includes(dialog.id)) dialog.addEventListener("cancel", (event) => event.preventDefault());
   });
   $("#pilot-name").addEventListener("keydown", (event) => { if (event.key === "Enter" && $("#launch-modal").open) startGame(); });
   try { $("#resume-game").hidden = !localStorage.getItem(SAVE_KEY); } catch { $("#resume-game").hidden = true; }

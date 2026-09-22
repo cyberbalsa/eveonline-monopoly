@@ -25,35 +25,33 @@
       this.log(state, `${state.players[state.current].name} won the opening roll. Sign the lease.`, state.players[state.current].color);
       return state;
     },
-    log(state, text, color = "#93aab3") {
-      state.log.push({ text, color });
-      if (state.log.length > 80) state.log.shift();
-    },
+    log(state, text, color = "#93aab3", details = {}) { E.log(state, text, color, details); },
     deck(data, name) { return name === "mail" ? data.mailCards : data.localCards; },
     jail(state, id) {
       const p = state.players[id];
       p.position = 10; p.inJail = true; p.jailTurns = 0;
       state.again = false; state.doublesRun = 0;
-      this.log(state, `${p.name} was banned for RMT. Team Security has the wallet logs.`, "#df6f73");
+      this.log(state, `${p.name} was banned for RMT. Team Security has the wallet logs.`, "#df6f73", { kind: "jail", player: id });
     },
     move(state, data, id, target, salary = true) {
       const p = state.players[id];
       if (salary && target < p.position) {
         p.cash += data.salary;
-        this.log(state, `${p.name} passed Undock. Collect 200M.`, p.color);
+        this.log(state, `${p.name} passed Undock. Collect 200M.`, p.color, { kind: "income", player: id });
       }
       p.position = target;
+      this.log(state, `${p.name} moved to ${data.spaces[target].name}.`, p.color, { kind: "move", player: id, index: target });
     },
     roll(state, data, dice) {
       if (state.phase !== "roll" || state.gameOver || dice.length !== 2 || !dice.every((n) => Number.isInteger(n) && n >= 1 && n <= 6)) return false;
       const id = state.current, p = state.players[id], total = dice[0] + dice[1], doubles = dice[0] === dice[1];
       if (p.bankrupt) return false;
       state.lastRoll = dice; state.again = doubles;
-      this.log(state, `${p.name} rolled ${dice[0]} + ${dice[1]}.`, p.color);
+      this.log(state, `${p.name} rolled ${dice[0]} + ${dice[1]}${doubles ? " (doubles)" : ""}.`, p.color, { kind: "roll", player: id });
       if (p.inJail) {
         state.again = false;
-        if (doubles) { p.inJail = false; p.jailTurns = 0; }
-        else if (++p.jailTurns < 3) { state.phase = "end"; return true; }
+        if (doubles) { p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name} rolled out of the RMT ban. Move once; no extra roll.`, p.color); }
+        else if (++p.jailTurns < 3) { this.log(state, `${p.name}'s ban appeal failed (${p.jailTurns}/3). No movement.`, p.color, { player: id }); state.phase = "end"; return true; }
         else state.queue.push({ type: "pay", player: id, to: null, amount: 50, reason: "third failed ban appeal" }, { type: "release", player: id });
       } else {
         state.doublesRun = doubles ? state.doublesRun + 1 : 0;
@@ -70,10 +68,13 @@
         if (p?.bankrupt && !["finish", "restore"].includes(event.type)) { state.queue.shift(); continue; }
         if (event.type === "pay") {
           if (event.to !== null && state.players[event.to].bankrupt) { state.queue.shift(); continue; }
-          if (p.cash < event.amount) { state.phase = "debt"; return; }
+          if (p.cash < event.amount) {
+            if (!event.announced) { this.log(state, `${p.name} owes ${event.amount}M to ${event.to === null ? "the Bank" : state.players[event.to].name} for ${event.reason}; raising cash.`, p.color, { kind: "debt", player: event.player }); event.announced = true; }
+            state.phase = "debt"; return;
+          }
           p.cash -= event.amount;
           if (event.to !== null) state.players[event.to].cash += event.amount;
-          this.log(state, `${p.name} paid ${event.amount}M to ${event.to === null ? "the Bank" : state.players[event.to].name}: ${event.reason}.`, p.color);
+          this.log(state, `${p.name} paid ${event.amount}M to ${event.to === null ? "the Bank" : state.players[event.to].name}: ${event.reason}.`, p.color, { kind: event.rent ? "rent" : "payment", player: event.player, to: event.to, amount: event.amount, index: event.index });
           state.queue.shift(); continue;
         }
         if (event.type === "mortgage") { state.phase = "mortgage"; return; }
@@ -90,7 +91,7 @@
               if (owner !== p && !owner.mortgaged[index]) {
                 if (space.type === "utility") { state.utility = { player: event.player, owner: state.players.indexOf(owner), index, multiplier: event.special === "utility" ? 10 : E.propertyCount(owner, "utility", data) === 2 ? 10 : 4 }; state.phase = "utility"; return; }
                 const amount = E.calculateRent(state, data, index, event.total) * (event.special === "transit" ? 2 : 1);
-                state.queue.unshift({ type: "pay", player: event.player, to: state.players.indexOf(owner), amount, reason: space.name });
+                state.queue.unshift({ type: "pay", player: event.player, to: state.players.indexOf(owner), amount, reason: space.name, rent: true, index });
               }
             } else if (space.type === "tax") state.queue.unshift({ type: "pay", player: event.player, to: null, amount: space.amount, reason: space.name });
             else if (space.type === "gotojail") this.jail(state, event.player);
@@ -98,13 +99,13 @@
               const cardIndex = state.decks[space.deck].shift();
               state.card = { player: event.player, deck: space.deck, index: cardIndex };
               state.phase = "card";
-              this.log(state, `${p.name} drew ${this.deck(data, space.deck)[cardIndex].title}.`, p.color);
+              this.log(state, `${p.name} drew ${this.deck(data, space.deck)[cardIndex].title}.`, p.color, { kind: "card", player: event.player });
               return;
             } else if (index === 20) this.log(state, `${p.name} docks at Freeport. Free parking, no payout.`, p.color);
             break;
           }
-          case "release": p.inJail = false; p.jailTurns = 0; break;
-          case "unmortgage": delete p.mortgaged[event.index]; break;
+          case "release": p.inJail = false; p.jailTurns = 0; this.log(state, `${p.name}'s RMT ban was lifted.`, p.color, { player: event.player }); break;
+          case "unmortgage": delete p.mortgaged[event.index]; this.log(state, `${p.name} redeemed ${data.spaces[event.index].name}.`, p.color, { kind: "mortgage", player: event.player }); break;
           case "auction": this.auction(state, data, event.index); return;
           case "restore":
             state.phase = event.phase === "roll" && state.players[state.current].bankrupt ? "end" : event.phase;
@@ -123,21 +124,22 @@
       const { player, index } = state.purchase;
       if (buy) {
         if (!E.buySpace(state, data, state.players[player], index)) return false;
-        this.log(state, `${state.players[player].name} leased ${data.spaces[index].name} for ${data.spaces[index].price}M.`, state.players[player].color);
+        this.log(state, `${state.players[player].name} leased ${data.spaces[index].name} for ${data.spaces[index].price}M.`, state.players[player].color, { kind: "purchase", player });
         delete state.purchase; this.process(state, data);
-      } else { delete state.purchase; this.auction(state, data, index); }
+      } else { this.log(state, `${state.players[player].name} declined ${data.spaces[index].name}. Send it to auction.`, state.players[player].color, { player }); delete state.purchase; this.auction(state, data, index); }
       return true;
     },
     acknowledge(state, data) {
       if (state.phase !== "card") return false;
       const { player, deck, index } = state.card, p = state.players[player];
-      const effect = this.deck(data, deck)[index].effect;
+      const card = this.deck(data, deck)[index], effect = card.effect;
+      this.log(state, `${p.name} ${effect.type === "escape" ? "kept" : "resolved"} ${card.title}: ${card.body}`, p.color, { kind: "card-resolved", player });
       delete state.card;
       if (effect.type === "escape") p.jailCardDecks.push(deck);
       else state.decks[deck].push(index);
       const actions = [], pay = (amount, to = null, payer = player) => ({ type: "pay", player: payer, amount, to, reason: "a card event" });
       switch (effect.type) {
-        case "cash": if (effect.value >= 0) p.cash += effect.value; else actions.push(pay(-effect.value)); break;
+        case "cash": if (effect.value >= 0) { p.cash += effect.value; this.log(state, `${p.name} received ${effect.value}M from the Bank: ${card.title}.`, p.color, { kind: "income", player }); } else actions.push(pay(-effect.value)); break;
         case "jail": this.jail(state, player); break;
         case "move": actions.push({ type: "move", player, target: effect.index }); break;
         case "back": actions.push({ type: "move", player, target: (p.position - effect.value + 40) % 40, salary: false }); break;
@@ -160,8 +162,8 @@
       if (state.phase !== "utility" || !dice.every((n) => Number.isInteger(n) && n >= 1 && n <= 6) || dice.length !== 2) return false;
       const { player, owner, index, multiplier } = state.utility;
       state.lastRoll = dice;
-      this.log(state, `Utility roll: ${dice.join(" + ")}. ${multiplier} times the total; no movement.`);
-      state.queue.unshift({ type: "pay", player, to: owner, amount: multiplier * (dice[0] + dice[1]), reason: data.spaces[index].name });
+      this.log(state, `${state.players[player].name} rolled utility rent: ${dice.join(" + ")}. ${multiplier} times the total; no movement.`, state.players[player].color, { kind: "roll", player });
+      state.queue.unshift({ type: "pay", player, to: owner, amount: multiplier * (dice[0] + dice[1]), reason: data.spaces[index].name, rent: true, index });
       delete state.utility; this.process(state, data); return true;
     },
     bail(state, data, card = null) {
@@ -185,6 +187,7 @@
         state.players.forEach((p, id) => { const target = p.properties.find((i) => E.canUpgrade(state, data, { ...p, cash: Infinity }, i) && ((p.upgrades[i] || 0) === 4 ? "hotels" : "houses") === building); if (target !== undefined) state.auction.targets[id] = target; });
       }
       state.phase = "auction";
+      this.log(state, `Auction opened: ${building ? `last ${building === "houses" ? "Astrahus" : "Keepstar"}` : data.spaces[index].name}. All eligible pilots may bid.`, undefined, { kind: "auction" });
     },
     bid(state, data, id, amount, target) {
       if (state.phase !== "auction") return false;
@@ -196,7 +199,7 @@
         a.targets[id] = target;
       }
       a.bid = amount; a.leader = id; a.passed = [];
-      this.log(state, `${p.name} bids ${amount}M.`, p.color); return true;
+      this.log(state, `${p.name} bids ${amount}M for ${a.building ? `the last ${a.building === "houses" ? "Astrahus" : "Keepstar"}` : data.spaces[a.index].name}.`, p.color, { kind: "bid", player: id }); return true;
     },
     finishAuction(state, data) {
       if (state.phase !== "auction") return false;
@@ -207,10 +210,10 @@
           const index = a.targets[a.leader], cost = data.spaces[index].buildCost;
           p.cash += cost - a.bid;
           E.upgrade(state, data, p, index);
-          this.log(state, `${p.name} won the last ${a.building === "houses" ? "Astrahus" : "Keepstar"} for ${a.bid}M.`, p.color);
+          this.log(state, `${p.name} won the last ${a.building === "houses" ? "Astrahus" : "Keepstar"} for ${a.bid}M and anchored it in ${data.spaces[index].name}.`, p.color, { kind: "build", player: a.leader });
         } else {
           E.buySpaceAtPrice(state, data, p, a.index, a.bid);
-          this.log(state, `${p.name} won ${data.spaces[a.index].name} for ${a.bid}M.`, p.color);
+          this.log(state, `${p.name} won ${data.spaces[a.index].name} for ${a.bid}M.`, p.color, { kind: "purchase", player: a.leader });
         }
       } else this.log(state, "No bids. The Bank keeps the asset.");
       delete state.auction;
@@ -231,8 +234,8 @@
       if (state.bank[kind] === 1 && (competitors || humanCanBid)) {
         state.buildingRequest = { player: id, index, kind, returnPhase: state.phase };
         if (competitors) this.buildingResponse(state, data, true);
-        else state.phase = "buildingOffer";
-      } else { E.upgrade(state, data, p, index); this.log(state, `${p.name} anchored ${p.upgrades[index] === 5 ? "a Keepstar" : "an Astrahus"} in ${data.spaces[index].name}.`, p.color); }
+        else { this.log(state, `${p.name} requested the last ${kind === "houses" ? "Astrahus" : "Keepstar"} for ${data.spaces[index].name}; waiting for competitors.`, p.color, { player: id }); state.phase = "buildingOffer"; }
+      } else { E.upgrade(state, data, p, index); this.log(state, `${p.name} anchored ${p.upgrades[index] === 5 ? "a Keepstar" : "an Astrahus"} in ${data.spaces[index].name} for ${data.spaces[index].buildCost}M.`, p.color, { kind: "build", player: id }); }
       return true;
     },
     buildingResponse(state, data, compete) {
@@ -245,7 +248,7 @@
         this.bid(state, data, request.player, 10, request.index);
       } else {
         E.upgrade(state, data, state.players[request.player], request.index);
-        this.log(state, `${state.players[request.player].name} bought the last ${request.kind === "houses" ? "Astrahus" : "Keepstar"} at its printed price.`);
+        this.log(state, `${state.players[request.player].name} bought the last ${request.kind === "houses" ? "Astrahus" : "Keepstar"} for ${data.spaces[request.index].buildCost}M in ${data.spaces[request.index].name}.`, state.players[request.player].color, { kind: "build", player: request.player });
         state.phase = request.returnPhase;
       }
       return true;
@@ -253,6 +256,7 @@
     mortgageChoice(state, data, lift) {
       if (state.phase !== "mortgage") return false;
       const event = state.queue.shift(), amount = lift ? E.unmortgageCost(data, event.index) : data.spaces[event.index].price / 20;
+      this.log(state, `${state.players[event.player].name} chose to ${lift ? "redeem" : "keep the mortgage on"} ${data.spaces[event.index].name}; Bank charge ${amount}M.`, state.players[event.player].color, { player: event.player });
       const events = [{ type: "pay", player: event.player, to: null, amount, reason: "transferred mortgage" }];
       if (lift) events.push({ type: "unmortgage", player: event.player, index: event.index });
       state.queue.unshift(...events); this.process(state, data); return true;
@@ -261,12 +265,15 @@
       if (!["roll", "end", "purchase", "debt"].includes(state.phase)) return false;
       const mortgages = E.executeTrade(state, data, trade);
       if (!mortgages) return false;
-      this.log(state, `${state.players[trade.from].name} and ${state.players[trade.to].name} signed a trade contract.`);
+      this.log(state, `${state.players[trade.from].name} traded ${this.describeTradeSide(data, trade.give)} to ${state.players[trade.to].name} for ${this.describeTradeSide(data, trade.take)}.`, state.players[trade.from].color, { kind: "trade", player: trade.from, to: trade.to });
       if (mortgages.length) {
         state.queue.unshift(...mortgages.map((item) => ({ type: "mortgage", ...item })), { type: "restore", phase: state.phase });
         this.process(state, data);
       } else if (state.phase === "debt") this.process(state, data);
       return true;
+    },
+    describeTradeSide(data, side) {
+      return [`${side.cash}M`, ...side.properties.map((i) => data.spaces[i].name), ...side.cards.map((deck) => `${deck === "mail" ? "Alliance Mail" : "Local Spike"} escape card`)].join(" + ");
     },
     bankrupt(state, data) {
       if (state.phase !== "debt") return false;
@@ -275,6 +282,7 @@
       E.raiseCash(state, data, p, Infinity);
       const receiver = debt.to === null ? null : state.players[debt.to];
       const props = [...p.properties], cards = [...p.jailCardDecks];
+      this.log(state, `${p.name} surrendered ${p.cash}M, ${props.length} leases and ${cards.length} held cards to ${receiver ? receiver.name : "the Bank (deeds will be auctioned)"}; unpaid debt: ${debt.amount}M.`, p.color, { player: debt.player });
       state.queue.shift();
       p.bankrupt = true;
       if (receiver) {
@@ -288,7 +296,7 @@
         state.queue.unshift(...props.map((index) => ({ type: "auction", index })));
       }
       p.cash = 0; p.properties = []; p.upgrades = {}; p.mortgaged = {}; p.jailCardDecks = [];
-      this.log(state, `${p.name} is bankrupt. Didn't want that empire anyway.`, "#df6f73");
+      this.log(state, `${p.name} is bankrupt. Didn't want that empire anyway.`, "#df6f73", { kind: "bankruptcy", player: debt.player });
       const living = state.players.filter((other) => !other.bankrupt);
       if (living.length === 1) { state.gameOver = true; state.phase = "over"; state.queue = []; this.log(state, `${living[0].name} wins. Everyone else is renting.`, living[0].color); }
       else this.process(state, data);
@@ -296,13 +304,16 @@
     },
     end(state, data) {
       if (state.phase !== "end" || state.gameOver) return false;
+      this.log(state, `${state.players[state.current].name} ended their turn.`, state.players[state.current].color, { kind: "turn", player: state.current });
       const next = E.nextPlayerIndex(state);
       if (next <= state.current) state.turn++;
       state.current = next; state.doublesRun = 0; state.again = false; state.phase = "roll";
+      this.log(state, `${state.players[next].name}'s turn.`, state.players[next].color, { kind: "turn", player: next });
       return true;
     },
     validate(state, data) {
       if (!state || state.version !== this.version || !Array.isArray(state.players) || state.players.length !== 4 || !["roll", "end", "purchase", "card", "utility", "debt", "auction", "mortgage", "offer", "buildingOffer", "over"].includes(state.phase) || !Number.isInteger(state.current) || state.current < 0 || state.current > 3 || !Array.isArray(state.queue) || !Array.isArray(state.log) || !state.bank || !state.decks) return false;
+      if (state.log.some((entry) => !entry || typeof entry.text !== "string")) return false;
       const seen = new Set(); let houses = state.bank.houses, hotels = state.bank.hotels;
       if (![houses, hotels].every((n) => Number.isInteger(n) && n >= 0)) return false;
       for (const p of state.players) {

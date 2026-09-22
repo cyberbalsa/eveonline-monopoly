@@ -2,6 +2,13 @@
 (function exposeEngine(root) {
   const groupCache = new WeakMap();
   const engine = {
+    log(state, text, color = "#93aab3", details = {}) {
+      if (!Array.isArray(state?.log)) return;
+      const player = details.player ?? state.players.findIndex((p) => text.startsWith(`${p.name} `));
+      state.log.push({ ...details, id: (state.log.at(-1)?.id || state.log.length) + 1,
+        time: Date.now(), round: state.turn, player: player >= 0 ? player : null,
+        kind: details.kind || "action", text, color });
+    },
     getOwner(state, spaceIndex) {
       return state.players.find((player) => player.properties.includes(spaceIndex)) || null;
     },
@@ -121,6 +128,7 @@
         bank.houses += 1;
       }
       player.upgrades[spaceIndex] = level - 1;
+      this.log(state, `${player.name} sold ${level === 5 ? "a Keepstar tier (four Astrahus remain)" : "an Astrahus"} in ${data.spaces[spaceIndex].name} for ${data.spaces[spaceIndex].buildCost / 2}M.`, player.color, { kind: "sale" });
       return true;
     },
 
@@ -136,6 +144,7 @@
       player.mortgaged ||= {};
       player.mortgaged[spaceIndex] = true;
       player.cash += data.spaces[spaceIndex].price / 2;
+      this.log(state, `${player.name} mortgaged ${data.spaces[spaceIndex].name} for ${data.spaces[spaceIndex].price / 2}M.`, player.color, { kind: "mortgage" });
       return true;
     },
 
@@ -143,11 +152,12 @@
       return data.spaces[spaceIndex].price / 2 + data.spaces[spaceIndex].price / 20;
     },
 
-    unmortgage(data, player, spaceIndex) {
+    unmortgage(data, player, spaceIndex, state) {
       const cost = this.unmortgageCost(data, spaceIndex);
       if (player.bankrupt || !player.properties.includes(spaceIndex) || !player.mortgaged?.[spaceIndex] || player.cash < cost) return false;
       player.cash -= cost;
       delete player.mortgaged[spaceIndex];
+      this.log(state, `${player.name} redeemed ${data.spaces[spaceIndex].name} for ${cost}M.`, player.color, { kind: "mortgage" });
       return true;
     },
 
@@ -207,6 +217,7 @@
       if (player.bankrupt || !this.ownsGroup(player, group, data)) return false;
       const spaces = this.groupSpaces(group, data);
       if (!spaces.some((space) => player.upgrades[space.index])) return false;
+      const oldCash = player.cash;
       for (const space of spaces) {
         const level = player.upgrades[space.index] || 0;
         player.cash += level * space.buildCost / 2;
@@ -214,6 +225,7 @@
         else state.bank.houses += level;
         delete player.upgrades[space.index];
       }
+      this.log(state, `${player.name} sold all buildings in ${data.groups[group].name} for ${player.cash - oldCash}M.`, player.color, { kind: "sale" });
       return true;
     },
 
@@ -276,7 +288,7 @@
     },
 
     evaluateTrade(state, data, trade, botIndex) {
-      if (!this.validateTrade(state, data, trade)) return { accept: false, gain: -Infinity, reason: "Invalid terms" };
+      if (!this.validateTrade(state, data, trade)) return { accept: false, valid: false, gain: -Infinity, reason: "Invalid terms" };
       const otherIndex = trade.from === botIndex ? trade.to : trade.from;
       const before = this.portfolioValue(state, data, state.players[botIndex]);
       const otherBefore = this.portfolioValue(state, data, state.players[otherIndex]);
@@ -289,8 +301,9 @@
       const reserve = this.projectedRentExposure(copy, data, bot).recommendedReserve;
       const danger = Object.keys(data.groups).some((group) => !this.ownsGroup(state.players[otherIndex], group, data) && this.ownsGroup(copy.players[otherIndex], group, data));
       const premium = danger ? Math.max(70, rivalGain * 0.65) : 15;
-      const accept = gain >= premium && bot.cash >= Math.min(150, reserve) && copy.players.every((p) => p.cash >= 0);
-      return { accept, gain, reason: accept ? "The numbers work. Contract accepted." : danger ? "You get a monopoly. Pay for it." : gain < premium ? "That contract favors you. Try again." : "I need liquid ISK for the next rent bill." };
+      const minimumReserve = Math.min(150, reserve), liquidityOK = bot.cash >= minimumReserve, transferSolvent = copy.players.every((p) => p.cash >= 0);
+      const accept = gain >= premium && liquidityOK && transferSolvent;
+      return { accept, valid: true, gain, premium, rivalGain, danger, cashAfter: bot.cash, minimumReserve, liquidityOK, transferSolvent, reason: accept ? "The numbers work. Contract accepted." : danger ? "You get a monopoly. Pay for it." : gain < premium ? "That contract favors you. Try again." : "I need liquid ISK for the next rent bill." };
     },
 
     botPurchaseDecision(state, data, player, spaceIndex, randomValue = Math.random()) {
